@@ -1,0 +1,32 @@
+<resources>
+    <string name="title_activity_settings">Settings</string>
+
+    <!-- Strings related to Settings -->
+
+    <!-- Example General settings -->
+    <string name="pref_header_general">General</string>
+
+    <string-array name="pref_color_list_titles">
+        <item>Gray</item>
+        <item>White</item>
+        <item>Black</item>
+    </string-array>
+    <string-array name="pref_color_list_values">
+        <item>1</item>
+        <item>0</item>
+        <item>-1</item>
+    </string-array>
+
+    <string-array name="fact_type_list_titles">
+        <item>Crazy</item>
+        <item>Sport</item>
+        <item>Nature</item>
+        <item>Science</item>
+    </string-array>
+    <string-array name="fact_type_list_values">
+        <item>-1</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+    </string-array>
+</resources>

@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Random_facts</string>
+
+    <string name="hello_world">Hello world!</string>
+    <string name="action_settings">Settings</string>
+    <string name="title_activity_crazy_facts">CrazyFactsActivity</string>
+    <string name="title_activity_crazy_sports">CrazySportsActivity</string>
+    <string name="title_activity_all_facts">AllFacts</string>
+</resources>

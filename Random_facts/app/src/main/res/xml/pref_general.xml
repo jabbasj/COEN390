@@ -1,0 +1,25 @@
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- NOTE: Hide buttons to simplify the UI. Users can touch outside the dialog to
+         dismiss it. -->
+    <!-- NOTE: ListPreference's summary should be set to its value by the activity code. -->
+    <ListPreference
+        android:key="background_color_list"
+        android:title="Background Color"
+        android:defaultValue="-1"
+        android:entries="@array/pref_color_list_titles"
+        android:entryValues="@array/pref_color_list_values"
+        android:negativeButtonText="@null"
+        android:positiveButtonText="@null" />
+
+    <ListPreference
+        android:key="display_fact_type"
+        android:title="Fact Type"
+        android:defaultValue="-1"
+        android:entries="@array/fact_type_list_titles"
+        android:entryValues="@array/fact_type_list_values"
+        android:negativeButtonText="@null"
+        android:positiveButtonText="@null" />
+
+
+</PreferenceScreen>
