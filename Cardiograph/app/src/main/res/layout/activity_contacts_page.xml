@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fitsSystemWindows="true"
-    tools:context="com.coen390.teamc.cardiograph.MainActivity">
+    tools:context="com.coen390.teamc.cardiograph.ContactsPage">
 
     <android.support.design.widget.AppBarLayout
         android:layout_width="match_parent"
@@ -16,20 +16,20 @@
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            android:background="@drawable/dark_red_gradient"
+            android:background="?attr/colorPrimary"
             app:popupTheme="@style/AppTheme.PopupOverlay" />
 
     </android.support.design.widget.AppBarLayout>
 
-    <include layout="@layout/content_main" />
-    <include layout="@layout/layout_tip_content_horizontal" />
+    <include layout="@layout/content_contacts_page" />
+    <include layout="@layout/layout_tip_content_horizontal"/>
 
     <android.support.design.widget.FloatingActionButton
-        android:id="@+id/warning_fab"
+        android:id="@+id/add_contact_fab"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
         android:layout_margin="@dimen/fab_margin"
-        android:src="@android:drawable/ic_dialog_alert" />
+        android:src="@drawable/ic_add_contact_24dp" />
 
 </android.support.design.widget.CoordinatorLayout>

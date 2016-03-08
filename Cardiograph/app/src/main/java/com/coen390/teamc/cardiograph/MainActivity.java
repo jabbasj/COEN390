@@ -22,7 +22,7 @@ import java.util.ArrayList;
 public class MainActivity extends AppCompatActivity {
 
     private ToolTipView mErrorWarningToolTipView;
-    private boolean errorWarningToolTipDrawn = false;
+    private DB_Helper myDBHelper;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -31,6 +31,8 @@ public class MainActivity extends AppCompatActivity {
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         toolbar.setLogo(R.mipmap.ic_launcher);
         setSupportActionBar(toolbar);
+
+        myDBHelper = new DB_Helper(this);
 
     }
 
@@ -43,14 +45,14 @@ public class MainActivity extends AppCompatActivity {
     public void onResume(){
         super.onResume();
 
-        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
-        fab.setOnClickListener(new CustomClickLister());
+        FloatingActionButton warning_fab = (FloatingActionButton) findViewById(R.id.warning_fab);
+        warning_fab.setOnClickListener(new CustomClickLister());
 
         if (!detectProblems().isEmpty()){
-            fab.show();
+            warning_fab.show();
             showErrorWarningTooltip();
         } else {
-            fab.hide();
+            warning_fab.hide();
             hideErrorWarningTooltip();
         }
     }
@@ -60,11 +62,11 @@ public class MainActivity extends AppCompatActivity {
         super.onStop();
     }
 
-    public class CustomClickLister implements View.OnClickListener {
+    private class CustomClickLister implements View.OnClickListener {
         @Override
         public void onClick(View v) {
             switch (v.getId()) {
-                case R.id.fab:
+                case R.id.warning_fab:
                     hideErrorWarningTooltip();
 
                     if (!isBluetoothAvailable()){
@@ -100,28 +102,25 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void hideErrorWarningTooltip() {
-        if (errorWarningToolTipDrawn) {
+        if (mErrorWarningToolTipView != null) {
             mErrorWarningToolTipView.remove();
-            errorWarningToolTipDrawn = false;
         }
     }
 
     private void showErrorWarningTooltip() {
 
-        if (!errorWarningToolTipDrawn) {
-            ToolTipRelativeLayout mToolTipFrameLayout = (ToolTipRelativeLayout) findViewById(R.id.tooltipRelativeLayout);
+        hideErrorWarningTooltip();
 
-            ToolTip toolTip = new ToolTip()
-                    .withText(" Warning ! ")
-                    .withColor(Color.parseColor("#ffdada"))
-                    .withTextColor(Color.BLACK)
-                    .withShadow()
-                    .withAnimationType(ToolTip.AnimationType.FROM_TOP);
+        ToolTipRelativeLayout mToolTipFrameLayout = (ToolTipRelativeLayout) findViewById(R.id.tooltipRelativeLayout);
 
-            errorWarningToolTipDrawn = true;
+        ToolTip toolTip = new ToolTip()
+                .withText(" Warning ! ")
+                .withColor(Color.parseColor("#ffdada"))
+                .withTextColor(Color.BLACK)
+                .withShadow()
+                .withAnimationType(ToolTip.AnimationType.FROM_TOP);
 
-            mErrorWarningToolTipView = mToolTipFrameLayout.showToolTipForView(toolTip, findViewById(R.id.fab));
-        }
+        mErrorWarningToolTipView = mToolTipFrameLayout.showToolTipForView(toolTip, findViewById(R.id.warning_fab));
     }
 
     private ArrayList<String> detectProblems(){
@@ -148,6 +147,8 @@ public class MainActivity extends AppCompatActivity {
 
         //noinspection SimplifiableIfStatement
         if (id == R.id.action_settings) {
+            Intent main_settings_intent = new Intent(MainActivity.this, SettingsActivity.class);
+            startActivity(main_settings_intent);
             return true;
         }
 
