@@ -6,36 +6,25 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Color;
 import android.location.LocationManager;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Message;
 import android.provider.Settings;
 import android.support.design.widget.FloatingActionButton;
-import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Button;
-import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import com.nhaarman.supertooltips.ToolTip;
 import com.nhaarman.supertooltips.ToolTipRelativeLayout;
 import com.nhaarman.supertooltips.ToolTipView;
-
-import java.lang.reflect.Method;
 import java.util.ArrayList;
-
-import zephyr.android.HxMBT.BTClient;
-import zephyr.android.HxMBT.ZephyrProtocol;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -56,15 +45,7 @@ public class MainActivity extends AppCompatActivity {
 
     /** Backend **/
     private DB_Helper myDBHelper;
-    private BluetoothAdapter mBluetoothAdapter;
-    private ArrayList<BluetoothDevice> mDeviceList = new ArrayList<BluetoothDevice>();
-    private BluetoothDevice mZephyr;
-
-    BTClient _bt;
-    ZephyrProtocol _protocol;
-    NewConnectedListener _NConnListener;
-    private final int HEART_RATE = 0x100;
-    private final int INSTANT_SPEED = 0x101;
+    private BluetoothConnection mBluetoothConnection;
 
 
     /******                 ENTRY                 ******/
@@ -80,7 +61,7 @@ public class MainActivity extends AppCompatActivity {
         ask_user_permission_for_location();
 
         myDBHelper = new DB_Helper(this);
-        mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        mBluetoothConnection = new BluetoothConnection((TextView)findViewById(R.id.live_pulse), this);
 
         measure_btn = (Button) findViewById(R.id.measure);
         stop_measure_btn = (Button) findViewById(R.id.stop_measure);
@@ -94,8 +75,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-
-
     /******                 FLOW CONTROL                  ******/
 
     @Override
@@ -106,6 +85,9 @@ public class MainActivity extends AppCompatActivity {
 
         if (!PROBLEMS_DETECTED.isEmpty()){
             showWarning();
+            hideMeasureBtn();
+            hideStopMeasureBtn();
+            mBluetoothConnection.disconnectListener();
         } else {
             hideWarning();
             showMeasureBtn();
@@ -116,19 +98,19 @@ public class MainActivity extends AppCompatActivity {
     public void detectProblems(){
         PROBLEMS_DETECTED = new ArrayList<>();
 
-        if (!isBluetoothAvailable()){
+        if (!mBluetoothConnection.isBluetoothAvailable()){
             PROBLEMS_DETECTED.add(BLUETOOTH_NOT_ENABLED);
         }
 
         if (!isLocationAvailable()){
-            PROBLEMS_DETECTED.add(LOCATION_NOT_ENABLED);
+            //PROBLEMS_DETECTED.add(LOCATION_NOT_ENABLED);
         }
 
-        if (mZephyr == null) {
+        if (mBluetoothConnection.mZephyr == null) {
             PROBLEMS_DETECTED.add(ZEPHYR_NOT_CONNECTED);
         }
 
-        if (mDeviceList.isEmpty()) {
+        if (mBluetoothConnection.mDeviceList.isEmpty()) {
             PROBLEMS_DETECTED.add(NO_DEVICES_FOUND);
         }
     }
@@ -138,12 +120,12 @@ public class MainActivity extends AppCompatActivity {
         public void onClick(View v) {
             switch (v.getId()) {
                 case R.id.measure:
-                    connectListener();
-                    _bt.start();
+                    mBluetoothConnection.connectListener();
+                    mBluetoothConnection._bt.start();
                     break;
 
                 case R.id.stop_measure:
-                    disconnectListener();
+                    mBluetoothConnection.disconnectListener();
                     break;
 
                 case R.id.warning_fab:
@@ -159,20 +141,17 @@ public class MainActivity extends AppCompatActivity {
 
                     } else if (NO_DEVICES_FOUND.equals(PROBLEMS_DETECTED.get(0))) {
 
-                        mBluetoothAdapter.startDiscovery();
+                        mBluetoothConnection.mBluetoothAdapter.startDiscovery();
 
                     } else if (ZEPHYR_NOT_CONNECTED.equals(PROBLEMS_DETECTED.get(0))) {
 
-                        mBluetoothAdapter.startDiscovery();
+                        mBluetoothConnection.mBluetoothAdapter.startDiscovery();
                     }
                     break;
 
             }
         }
     }
-
-
-
 
 
     /******                 OVERRIDES                  ******/
@@ -184,7 +163,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onDestroy(){
-        disconnectListener();
+        mBluetoothConnection.disconnectListener();
         unregisterReceiver(mReceiver);
         super.onDestroy();
     }
@@ -220,30 +199,10 @@ public class MainActivity extends AppCompatActivity {
 
 
 
-
-
     /******                 UI                  ******/
 
-    private void showToast(String message) {
+    public void showToast(String message) {
         Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
-    }
-
-    private void showLocationNotEnabledDialog(View v){
-        new AlertDialog.Builder(v.getContext())
-                .setTitle("Location not enabled")
-                .setMessage("Enable Location?")
-                .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int which) {
-                        //ask_user_permission_for_location();
-                    }
-                })
-                .setNegativeButton(android.R.string.no, new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int which) {
-                        // do nothing
-                    }
-                })
-                .setIcon(android.R.drawable.ic_dialog_alert)
-                .show();
     }
 
     private void showMeasureBtn(){
@@ -261,9 +220,6 @@ public class MainActivity extends AppCompatActivity {
     private void hideStopMeasureBtn() {
         stop_measure_btn.setVisibility(View.GONE);
     }
-
-
-
 
 
 
@@ -306,8 +262,6 @@ public class MainActivity extends AppCompatActivity {
 
 
 
-
-
     /******              LOCATION               ******/
 
     @TargetApi(23)
@@ -336,10 +290,15 @@ public class MainActivity extends AppCompatActivity {
 
 
 
-
     /******              BLUETOOTH               ******/
 
-    private void setBluetoothListener() {
+    private void enableBluetooth(){
+
+        Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+        startActivityForResult(enableBtIntent, 1);
+    }
+
+    public void setBluetoothListener() {
         IntentFilter filter = new IntentFilter();
 
         filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
@@ -350,36 +309,7 @@ public class MainActivity extends AppCompatActivity {
         registerReceiver(mReceiver, filter);
     }
 
-    private void enableBluetooth(){
-
-        Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-        startActivityForResult(enableBtIntent, 1);
-    }
-
-    private boolean isBluetoothAvailable() {
-        return (mBluetoothAdapter != null && mBluetoothAdapter.isEnabled());
-    }
-
-    private void pairDevice(BluetoothDevice device) {
-        try {
-            Method method = device.getClass().getMethod("createBond", (Class[]) null);
-            method.invoke(device, (Object[]) null);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void unpairDevice(BluetoothDevice device) {
-        try {
-            Method method = device.getClass().getMethod("removeBond", (Class[]) null);
-            method.invoke(device, (Object[]) null);
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+    public final BroadcastReceiver mReceiver = new BroadcastReceiver() {
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
 
@@ -396,86 +326,28 @@ public class MainActivity extends AppCompatActivity {
                 }
             } else if (BluetoothAdapter.ACTION_DISCOVERY_STARTED.equals(action)) {
 
-                mDeviceList = new ArrayList<BluetoothDevice>();
+                mBluetoothConnection.mDeviceList = new ArrayList<BluetoothDevice>();
                 showToast("Scanning...");
 
             } else if (BluetoothDevice.ACTION_FOUND.equals(action)) {
 
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                mDeviceList.add(device);
+                mBluetoothConnection.mDeviceList.add(device);
                 if (device.getName() != null && device.getName().startsWith("HXM")) {
-                    mBluetoothAdapter.cancelDiscovery();
+                    mBluetoothConnection.mBluetoothAdapter.cancelDiscovery();
                 }
 
             } else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
+
                 showToast("Discovery finished");
-                onResume();
-                if (!mDeviceList.isEmpty()) {
-                    connectWithZephyr();
+                if (!mBluetoothConnection.mDeviceList.isEmpty()) {
+                    mBluetoothConnection.connectWithZephyr();
+                    if (mBluetoothConnection.mZephyr != null) {
+                        showToast("ZEPHYR Found");
+                    }
                 }
             }
         }
     };
-
-
-
-
-
-
-    /******               ZEPHYR                ******/
-
-    private void connectWithZephyr() {
-        for (int i = 0; i < mDeviceList.size(); i++) {
-
-            if (mDeviceList.get(i).getName() != null && mDeviceList.get(i).getName().startsWith("HXM")) {
-
-                mZephyr = mDeviceList.get(i);
-                if (mZephyr.getBondState() != BluetoothDevice.BOND_BONDED) {
-                    pairDevice(mZephyr);
-                }
-                showToast("ZEPHYR Found");
-                break;
-            }
-        }
-        onResume();
-    }
-
-    private void connectListener() {
-        _bt = new BTClient(mBluetoothAdapter, mZephyr.getAddress());
-        _NConnListener = new NewConnectedListener(Newhandler, Newhandler);
-        _bt.addConnectedEventListener(_NConnListener);
-    }
-
-    private void disconnectListener() {
-        /*This disconnects listener from acting on received messages*/
-        if (_bt != null) {
-            _bt.removeConnectedEventListener(_NConnListener);
-        /*Close the communication with the device & throw an exception if failure*/
-            _bt.Close();
-        }
-    }
-
-    final Handler Newhandler = new Handler(){
-        public void handleMessage(Message msg) {
-            TextView tv = (TextView)findViewById(R.id.live_pulse);
-            switch (msg.what)
-            {
-                case HEART_RATE:
-                    String HeartRatetext = msg.getData().getString("HeartRate");
-                    if (tv != null) tv.setText(HeartRatetext + " bpm");
-                    break;
-
-                case INSTANT_SPEED:
-                    String InstantSpeedtext = msg.getData().getString("InstantSpeed");
-                    //if (tv != null)tv.setText(InstantSpeedtext);
-                    break;
-
-            }
-        }
-
-    };
-
-
-
 
 }
