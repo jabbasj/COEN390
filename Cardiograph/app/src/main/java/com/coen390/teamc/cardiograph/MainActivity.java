@@ -2,16 +2,9 @@ package com.coen390.teamc.cardiograph;
 
 import android.Manifest;
 import android.annotation.TargetApi;
-import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
-import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.graphics.Color;
-import android.location.LocationManager;
 import android.os.Bundle;
-import android.provider.Settings;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
@@ -31,7 +24,6 @@ public class MainActivity extends AppCompatActivity {
 
     /** Error handling **/
     private String BLUETOOTH_NOT_ENABLED = "BLUETOOTH NOT ENABLED!";
-    private String LOCATION_NOT_ENABLED = "LOCATION NOT ENABLED!";
     private String NO_DEVICES_FOUND = "NO DEVICES FOUND!";
     private String ZEPHYR_NOT_CONNECTED = "ZEPHYR NOT CONNECTED!";
     public ArrayList<String> PROBLEMS_DETECTED;
@@ -81,7 +73,7 @@ public class MainActivity extends AppCompatActivity {
     public void onResume(){
         super.onResume();
         detectProblems();
-        setBluetoothListener();
+        mBluetoothConnection.setBluetoothListener();
 
         if (!PROBLEMS_DETECTED.isEmpty()){
             showWarning();
@@ -100,10 +92,6 @@ public class MainActivity extends AppCompatActivity {
 
         if (!mBluetoothConnection.isBluetoothAvailable()){
             PROBLEMS_DETECTED.add(BLUETOOTH_NOT_ENABLED);
-        }
-
-        if (!isLocationAvailable()){
-            //PROBLEMS_DETECTED.add(LOCATION_NOT_ENABLED);
         }
 
         if (mBluetoothConnection.mZephyr == null) {
@@ -131,13 +119,7 @@ public class MainActivity extends AppCompatActivity {
                 case R.id.warning_fab:
                     if (BLUETOOTH_NOT_ENABLED.equals(PROBLEMS_DETECTED.get(0))) {
 
-                        enableBluetooth();
-
-                    } else if (LOCATION_NOT_ENABLED.equals(PROBLEMS_DETECTED.get(0))) {
-
-                        enableLocation();
-                        while (!isLocationAvailable()) ;
-                        showToast("Location - Enabled");
+                        mBluetoothConnection.enableBluetooth();
 
                     } else if (NO_DEVICES_FOUND.equals(PROBLEMS_DETECTED.get(0))) {
 
@@ -164,7 +146,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onDestroy(){
         mBluetoothConnection.disconnectListener();
-        unregisterReceiver(mReceiver);
+        unregisterReceiver(mBluetoothConnection.mReceiver);
         super.onDestroy();
     }
 
@@ -271,83 +253,9 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults){
-        if (!isLocationAvailable()) {
-            if (requestCode == 1) {
-                //permission granted
-            }
+        if (requestCode == 1) {
+            //permission granted
         }
     }
-
-    private void enableLocation(){
-        Intent enableLocationIntent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
-        startActivityForResult(enableLocationIntent, 1);
-    }
-
-    private boolean isLocationAvailable(){
-        LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        return (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER));
-    }
-
-
-
-    /******              BLUETOOTH               ******/
-
-    private void enableBluetooth(){
-
-        Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-        startActivityForResult(enableBtIntent, 1);
-    }
-
-    public void setBluetoothListener() {
-        IntentFilter filter = new IntentFilter();
-
-        filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
-        filter.addAction(BluetoothDevice.ACTION_FOUND);
-        filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_STARTED);
-        filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
-
-        registerReceiver(mReceiver, filter);
-    }
-
-    public final BroadcastReceiver mReceiver = new BroadcastReceiver() {
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-
-            if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action)) {
-                final int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR);
-
-                if (state == BluetoothAdapter.STATE_ON) {
-
-                    showToast("Bluetooth - Enabled");
-
-                } else if (state == BluetoothAdapter.STATE_OFF) {
-
-                    showToast("Bluetooth - Disabled");
-                }
-            } else if (BluetoothAdapter.ACTION_DISCOVERY_STARTED.equals(action)) {
-
-                mBluetoothConnection.mDeviceList = new ArrayList<BluetoothDevice>();
-                showToast("Scanning...");
-
-            } else if (BluetoothDevice.ACTION_FOUND.equals(action)) {
-
-                BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                mBluetoothConnection.mDeviceList.add(device);
-                if (device.getName() != null && device.getName().startsWith("HXM")) {
-                    mBluetoothConnection.mBluetoothAdapter.cancelDiscovery();
-                }
-
-            } else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
-
-                showToast("Discovery finished");
-                if (!mBluetoothConnection.mDeviceList.isEmpty()) {
-                    mBluetoothConnection.connectWithZephyr();
-                    if (mBluetoothConnection.mZephyr != null) {
-                        showToast("ZEPHYR Found");
-                    }
-                }
-            }
-        }
-    };
 
 }
