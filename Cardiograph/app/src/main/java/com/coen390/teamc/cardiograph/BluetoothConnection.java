@@ -1,5 +1,6 @@
 package com.coen390.teamc.cardiograph;
 
+import android.app.ProgressDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.content.BroadcastReceiver;
@@ -16,7 +17,9 @@ import android.widget.TextView;
 import zephyr.android.HxMBT.BTClient;
 import zephyr.android.HxMBT.ZephyrProtocol;
 import java.lang.reflect.Method;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 
 public class BluetoothConnection {
 
@@ -27,17 +30,23 @@ public class BluetoothConnection {
     public BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
     public ArrayList<BluetoothDevice> mDeviceList = new ArrayList<BluetoothDevice>();
     public BluetoothDevice mZephyr;
-    private TextView live_pulse_tv;
     private Context mMainPageContext;
     private MainActivity mMainActivity;
+    private ProgressDialog scanningDialog;
 
+    public boolean recordMeasurement = false;
     private final int HEART_RATE = 0x100;
     private final int INSTANT_SPEED = 0x101;
 
-    public BluetoothConnection(TextView tv, Context ctx) {
-        live_pulse_tv = tv;
+    public BluetoothConnection(Context ctx) {
         mMainPageContext = ctx;
         mMainActivity = (MainActivity)ctx;
+
+        scanningDialog = new ProgressDialog(mMainActivity);
+        scanningDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
+        scanningDialog.setMessage("Scanning. Please wait...");
+        scanningDialog.setIndeterminate(true);
+        scanningDialog.setCanceledOnTouchOutside(false);
     }
 
     public boolean isBluetoothAvailable() {
@@ -118,7 +127,16 @@ public class BluetoothConnection {
             {
                 case HEART_RATE:
                     String HeartRatetext = msg.getData().getString("HeartRate");
-                    if (live_pulse_tv != null) live_pulse_tv.setText(HeartRatetext + " bpm");
+                    if (mMainActivity.live_pulse_tv != null) mMainActivity.live_pulse_tv.setText(HeartRatetext + " bpm");
+
+                    if (recordMeasurement) {
+                        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                        String currentTimeStamp = dateFormat.format(new Date());
+
+                        if (Integer.parseInt(HeartRatetext) > 0) {
+                            mMainActivity.myDBHelper.insertInstantaneousHeartRate(currentTimeStamp, HeartRatetext, "testRecord");
+                        }
+                    }
                     break;
 
                 case INSTANT_SPEED:
@@ -194,23 +212,40 @@ public class BluetoothConnection {
 
                 mDeviceList = new ArrayList<BluetoothDevice>();
                 mMainActivity.showToast("Scanning...");
+                scanningDialog.show();
+
 
             } else if (BluetoothDevice.ACTION_FOUND.equals(action)) {
 
+                SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(mMainPageContext);
+                String previous_mac = sp.getString("zephyr_mac_address", "");
+                String previous_name = sp.getString("zephyr_name", "HXM");
+
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                 mDeviceList.add(device);
-                if (device.getName() != null && device.getName().startsWith("HXM")) {
+                if (device.getName() != null && (device.getAddress().equals(previous_mac) || device.getName().startsWith("HXM") || device.getName().equals(previous_name))) {
                     mBluetoothAdapter.cancelDiscovery();
                 }
 
             } else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
+
+                if (scanningDialog.isShowing()) {
+                    scanningDialog.dismiss();
+                }
+
                 if (mZephyr == null) {
                     mMainActivity.showToast("Discovery finished");
                     if (!mDeviceList.isEmpty()) {
                         connectWithZephyr();
                         if (mZephyr != null) {
-                            mMainActivity.showToast("ZEPHYR Found");
+                            mMainActivity.showToast("ZEPHYR found");
+                        } else {
+                            mMainActivity.showToast("Is your ZEPHYR clipped on?");
+                            mMainActivity.onResume();
                         }
+                    } else {
+                        mMainActivity.showToast("No devices found");
+                        mMainActivity.onResume();
                     }
                 }
             }

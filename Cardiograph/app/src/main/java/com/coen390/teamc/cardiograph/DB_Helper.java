@@ -54,7 +54,7 @@ public class DB_Helper extends SQLiteOpenHelper {
     }
 
     public Cursor customQuery(String query) {
-        return getReadableDatabase().rawQuery(query, null);
+        return getWritableDatabase().rawQuery(query, null, null);
     }
 
     public void insertContact(String name, String phone, String priority, String action) {
@@ -62,8 +62,21 @@ public class DB_Helper extends SQLiteOpenHelper {
                 phone + "','" + priority + "','" + action + "');");
     }
 
+    public void insertInstantaneousHeartRate(String timeStamp, String heartRate, String note) {
+        getReadableDatabase().execSQL("INSERT INTO " + DB_Contract.InstantaneousHeartRateEntry.TABLE_NAME + " VALUES('" + timeStamp + "','" +
+                heartRate + "','" + note + "');");
+    }
+
     public Cursor getAllContacts() {
         return customQuery("SELECT * FROM " + DB_Contract.ContactsEntry.TABLE_NAME + ";");
+    }
+
+    public void deleteAllInstantaneousHeartRates() {
+        getReadableDatabase().delete(DB_Contract.InstantaneousHeartRateEntry.TABLE_NAME, null, null);
+    }
+
+    public Cursor getAllInstantaneousHeartRates() {
+        return customQuery("SELECT * FROM " + DB_Contract.InstantaneousHeartRateEntry.TABLE_NAME + ";");
     }
 
     public void removeContactByPhone(String phone) {

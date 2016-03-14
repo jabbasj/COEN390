@@ -64,4 +64,28 @@
         android:layout_alignTop="@+id/live_pulse" />
 
 
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/blue_button"
+        android:text="Record"
+        android:visibility="gone"
+        android:id="@+id/start_record"
+        android:layout_alignBottom="@+id/live_pulse"
+        android:layout_toStartOf="@+id/live_pulse" />
+
+
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/grey_button"
+        android:text="View Data"
+        android:visibility="visible"
+        android:id="@+id/view_data"
+        android:layout_below="@+id/live_pulse"
+        android:layout_marginTop="51dp"
+        android:layout_alignEnd="@+id/live_pulse"
+        android:layout_alignStart="@+id/live_pulse" />
+
+
 </RelativeLayout>

@@ -3,6 +3,7 @@ package com.coen390.teamc.cardiograph;
 import android.Manifest;
 import android.annotation.TargetApi;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
@@ -17,26 +18,34 @@ import android.widget.Toast;
 import com.nhaarman.supertooltips.ToolTip;
 import com.nhaarman.supertooltips.ToolTipRelativeLayout;
 import com.nhaarman.supertooltips.ToolTipView;
+
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 
 
 public class MainActivity extends AppCompatActivity {
 
     /** Error handling **/
+    final private int REQUEST_CODE_ASK_PERMISSIONS = 123;
     private String BLUETOOTH_NOT_ENABLED = "BLUETOOTH NOT ENABLED!";
     private String NO_DEVICES_FOUND = "NO DEVICES FOUND!";
     private String ZEPHYR_NOT_CONNECTED = "ZEPHYR NOT CONNECTED!";
+    private String CIRCUIT_NOT_COMPLETE = "CIRCUIT NOT COMPLETE!"; //must apply water to connectors
     public ArrayList<String> PROBLEMS_DETECTED;
 
     /** UI **/
     private ToolTipView mErrorWarningToolTipView;
     private FloatingActionButton warning_fab;
     private TextView warning_tv;
+    public TextView live_pulse_tv;
     private Button measure_btn;
     private Button stop_measure_btn;
+    private Button start_recording_btn;
+    private Button view_data_btn;
 
     /** Backend **/
-    private DB_Helper myDBHelper;
+    public DB_Helper myDBHelper;
     private BluetoothConnection mBluetoothConnection;
 
 
@@ -53,16 +62,22 @@ public class MainActivity extends AppCompatActivity {
         ask_user_permission_for_location();
 
         myDBHelper = new DB_Helper(this);
-        mBluetoothConnection = new BluetoothConnection((TextView)findViewById(R.id.live_pulse), this);
+
+        live_pulse_tv = (TextView)findViewById(R.id.live_pulse);
+        mBluetoothConnection = new BluetoothConnection(this);
 
         measure_btn = (Button) findViewById(R.id.measure);
         stop_measure_btn = (Button) findViewById(R.id.stop_measure);
+        start_recording_btn = (Button) findViewById(R.id.start_record);
+        view_data_btn = (Button) findViewById(R.id.view_data);
         warning_fab = (FloatingActionButton) findViewById(R.id.warning_fab);
         warning_tv = (TextView) findViewById(R.id.warning_tv);
 
 
         warning_fab.setOnClickListener(new CustomClickLister());
         measure_btn.setOnClickListener(new CustomClickLister());
+        view_data_btn.setOnClickListener(new CustomClickLister());
+        start_recording_btn.setOnClickListener(new CustomClickLister());
         stop_measure_btn.setOnClickListener(new CustomClickLister());
     }
 
@@ -101,6 +116,13 @@ public class MainActivity extends AppCompatActivity {
         if (mBluetoothConnection.mDeviceList.isEmpty()) {
             PROBLEMS_DETECTED.add(NO_DEVICES_FOUND);
         }
+
+        /*
+        if (live_pulse_tv.getText().equals("0 bpm")) {
+            PROBLEMS_DETECTED.add(CIRCUIT_NOT_COMPLETE);
+        }
+        */
+
     }
 
     private class CustomClickLister implements View.OnClickListener {
@@ -110,10 +132,22 @@ public class MainActivity extends AppCompatActivity {
                 case R.id.measure:
                     mBluetoothConnection.connectListener();
                     mBluetoothConnection._bt.start();
+                    showRecordBtn();
                     break;
 
                 case R.id.stop_measure:
                     mBluetoothConnection.disconnectListener();
+                    mBluetoothConnection.recordMeasurement = false;
+                    hideRecordBtn();
+                    break;
+
+                case R.id.start_record:
+                    mBluetoothConnection.recordMeasurement = true;
+                    break;
+
+                case R.id.view_data:
+                    Intent data_graph_page = new Intent(MainActivity.this, DataGraph.class);
+                    startActivity(data_graph_page);
                     break;
 
                 case R.id.warning_fab:
@@ -121,16 +155,19 @@ public class MainActivity extends AppCompatActivity {
 
                         mBluetoothConnection.enableBluetooth();
 
-                    } else if (NO_DEVICES_FOUND.equals(PROBLEMS_DETECTED.get(0))) {
+                    } else if (NO_DEVICES_FOUND.equals(PROBLEMS_DETECTED.get(0)) || ZEPHYR_NOT_CONNECTED.equals(PROBLEMS_DETECTED.get(0))) {
 
-                        mBluetoothConnection.mBluetoothAdapter.startDiscovery();
+                        if (mBluetoothConnection.mBluetoothAdapter.isDiscovering()) {
+                            showToast("Scanning takes a few seconds!");
+                        } else {
+                            mBluetoothConnection.mBluetoothAdapter.startDiscovery();
+                        }
 
-                    } else if (ZEPHYR_NOT_CONNECTED.equals(PROBLEMS_DETECTED.get(0))) {
-
-                        mBluetoothConnection.mBluetoothAdapter.startDiscovery();
-                    }
+                    }/* else if (CIRCUIT_NOT_COMPLETE.equals(PROBLEMS_DETECTED.get(0))) {
+                        showToast("Apply Water to Connectors!");
+                        onResume();
+                    }*/
                     break;
-
             }
         }
     }
@@ -203,6 +240,16 @@ public class MainActivity extends AppCompatActivity {
         stop_measure_btn.setVisibility(View.GONE);
     }
 
+    private void showRecordBtn() {
+        start_recording_btn.setVisibility(View.VISIBLE);
+        hideMeasureBtn();
+    }
+
+    private void hideRecordBtn() {
+        start_recording_btn.setVisibility(View.GONE);
+        showMeasureBtn();
+    }
+
 
 
     /******              WARNING UI               ******/
@@ -248,13 +295,27 @@ public class MainActivity extends AppCompatActivity {
 
     @TargetApi(23)
     private void ask_user_permission_for_location() {
-        requestPermissions(new String[]{Manifest.permission.ACCESS_COARSE_LOCATION}, 1);
+
+        int hasCoarseLocationPermission = checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION);
+
+        if (hasCoarseLocationPermission != PackageManager.PERMISSION_GRANTED) {
+
+            requestPermissions(new String[]{Manifest.permission.ACCESS_COARSE_LOCATION}, REQUEST_CODE_ASK_PERMISSIONS);
+            return;
+        }
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults){
-        if (requestCode == 1) {
-            //permission granted
+        switch(requestCode) {
+            case REQUEST_CODE_ASK_PERMISSIONS:
+                if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    //granted
+                } else {
+                    //location permission denied
+                    showToast("Zephyr not discoverable without location permission.");
+                    ask_user_permission_for_location();
+                }
         }
     }
 
