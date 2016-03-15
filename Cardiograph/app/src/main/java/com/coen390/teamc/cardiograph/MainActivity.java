@@ -9,6 +9,7 @@ import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -133,16 +134,19 @@ public class MainActivity extends AppCompatActivity {
                     mBluetoothConnection.connectListener();
                     mBluetoothConnection._bt.start();
                     showRecordBtn();
+                    showToast("Started!");
                     break;
 
                 case R.id.stop_measure:
                     mBluetoothConnection.disconnectListener();
                     mBluetoothConnection.recordMeasurement = false;
                     hideRecordBtn();
+                    showToast("Stopped!");
                     break;
 
                 case R.id.start_record:
                     mBluetoothConnection.recordMeasurement = true;
+                    showToast("Recording!");
                     break;
 
                 case R.id.view_data:

@@ -13,7 +13,6 @@ import android.os.Handler;
 import android.os.Message;
 import android.preference.PreferenceManager;
 import android.support.v7.app.AlertDialog;
-import android.widget.TextView;
 import zephyr.android.HxMBT.BTClient;
 import zephyr.android.HxMBT.ZephyrProtocol;
 import java.lang.reflect.Method;
@@ -207,6 +206,7 @@ public class BluetoothConnection {
                 } else if (state == BluetoothAdapter.STATE_OFF) {
 
                     mMainActivity.showToast("Bluetooth - Disabled");
+                    mMainActivity.onResume();
                 }
             } else if (BluetoothAdapter.ACTION_DISCOVERY_STARTED.equals(action)) {
 
