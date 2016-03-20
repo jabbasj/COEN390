@@ -24,4 +24,12 @@
         android:key="notifications_new_message_vibrate"
         android:title="@string/pref_title_vibrate" />
 
+    <EditTextPreference
+        android:key="battery_level"
+        android:inputType="number"
+        android:defaultValue="15"
+        android:summary="Set at which battery % you want to be alerted (15% recommended)"
+        android:title="Battery Warning" />
+
+
 </PreferenceScreen>

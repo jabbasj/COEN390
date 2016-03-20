@@ -2,14 +2,23 @@ package com.coen390.teamc.cardiograph;
 
 import android.Manifest;
 import android.annotation.TargetApi;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.media.Ringtone;
+import android.media.RingtoneManager;
+import android.net.Uri;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.support.design.widget.FloatingActionButton;
+import android.support.v4.app.NotificationCompat;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
-import android.util.Log;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -20,9 +29,7 @@ import com.nhaarman.supertooltips.ToolTip;
 import com.nhaarman.supertooltips.ToolTipRelativeLayout;
 import com.nhaarman.supertooltips.ToolTipView;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -37,6 +44,16 @@ public class MainActivity extends AppCompatActivity {
 
     /** UI **/
     private ToolTipView mErrorWarningToolTipView;
+
+    static protected boolean batteryDialogShown = false;
+    protected AlertDialog batteryLowDialog;
+
+    static protected boolean badConnectionDialogShown = false;
+    protected AlertDialog badConnectionDialog;
+
+    static protected boolean deviceDisconnectedDialogShown = false;
+    protected AlertDialog deviceDisconnectedDialog;
+
     private FloatingActionButton warning_fab;
     private TextView warning_tv;
     public TextView live_pulse_tv;
@@ -48,6 +65,8 @@ public class MainActivity extends AppCompatActivity {
     /** Backend **/
     public DB_Helper myDBHelper;
     private BluetoothConnection mBluetoothConnection;
+    private SharedPreferences.OnSharedPreferenceChangeListener prefListener;
+    private SharedPreferences prefs;
 
 
     /******                 ENTRY                 ******/
@@ -62,10 +81,16 @@ public class MainActivity extends AppCompatActivity {
 
         ask_user_permission_for_location();
 
+
         myDBHelper = new DB_Helper(this);
 
         live_pulse_tv = (TextView)findViewById(R.id.live_pulse);
         mBluetoothConnection = new BluetoothConnection(this);
+
+        initializeLowBatteryDialog();
+        initializeBadConnectionDialog();
+        initializeDeviceDisconnectedDialog();
+        setPreferenceChangeListener();
 
         measure_btn = (Button) findViewById(R.id.measure);
         stop_measure_btn = (Button) findViewById(R.id.stop_measure);
@@ -95,6 +120,7 @@ public class MainActivity extends AppCompatActivity {
             showWarning();
             hideMeasureBtn();
             hideStopMeasureBtn();
+            start_recording_btn.setVisibility(View.GONE);
             mBluetoothConnection.disconnectListener();
         } else {
             hideWarning();
@@ -103,7 +129,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public void detectProblems(){
+    protected void detectProblems(){
         PROBLEMS_DETECTED = new ArrayList<>();
 
         if (!mBluetoothConnection.isBluetoothAvailable()){
@@ -131,8 +157,10 @@ public class MainActivity extends AppCompatActivity {
         public void onClick(View v) {
             switch (v.getId()) {
                 case R.id.measure:
+                    showToast("Starting...");
                     mBluetoothConnection.connectListener();
                     mBluetoothConnection._bt.start();
+
                     showRecordBtn();
                     showToast("Started!");
                     break;
@@ -188,6 +216,7 @@ public class MainActivity extends AppCompatActivity {
     public void onDestroy(){
         mBluetoothConnection.disconnectListener();
         unregisterReceiver(mBluetoothConnection.mReceiver);
+        prefs.unregisterOnSharedPreferenceChangeListener(prefListener);
         super.onDestroy();
     }
 
@@ -224,7 +253,7 @@ public class MainActivity extends AppCompatActivity {
 
     /******                 UI                  ******/
 
-    public void showToast(String message) {
+    protected void showToast(String message) {
         Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
     }
 
@@ -284,7 +313,7 @@ public class MainActivity extends AppCompatActivity {
         ToolTipRelativeLayout mToolTipFrameLayout = (ToolTipRelativeLayout) findViewById(R.id.tooltipRelativeLayout);
 
         ToolTip toolTip = new ToolTip()
-                .withText(" Warning ! ")
+                .withText("Click to Resolve !")
                 .withColor(Color.parseColor("#ffdada"))
                 .withTextColor(Color.BLACK)
                 .withShadow()
@@ -293,7 +322,131 @@ public class MainActivity extends AppCompatActivity {
         mErrorWarningToolTipView = mToolTipFrameLayout.showToolTipForView(toolTip, findViewById(R.id.warning_fab));
     }
 
+    private void initializeLowBatteryDialog() {
+        batteryLowDialog = new AlertDialog.Builder(this)
+                .setTitle("Battery Low!")
+                .setMessage("Please recharge ZEPHYR..")
+                .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        batteryDialogShown = false;
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        //batteryDialogShown = false; escape alerts ?
+                    }
+                })
+                .setIcon(android.R.drawable.ic_dialog_alert).create();
+    }
 
+    protected void showBatteryLowDialog(){
+        if (!batteryDialogShown) {
+            NotificationCompat.Builder mBuilder =
+                    new NotificationCompat.Builder(this)
+                            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                            .setContentTitle("Cardiograph")
+                            .setContentText("Battery Low!");
+
+            Intent resultIntent = new Intent(this, MainActivity.class);
+            resultIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            resultIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
+            PendingIntent resultPendingIntent =
+                    PendingIntent.getActivity(
+                            this,
+                            0,
+                            resultIntent,
+                            PendingIntent.FLAG_UPDATE_CURRENT
+                    );
+
+            mBuilder.setContentIntent(resultPendingIntent);
+
+            NotificationManager mNotifyMgr =
+                    (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+
+            mNotifyMgr.notify(777, mBuilder.build());
+            batteryLowDialog.show();
+            playAlertRingTone();
+            batteryDialogShown = true;
+        }
+    }
+
+    private void initializeBadConnectionDialog() {
+        badConnectionDialog = new AlertDialog.Builder(this)
+                .setTitle("Bad Connection!")
+                .setMessage("Add water to connectors and restart!")
+                .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        badConnectionDialogShown = false;
+                        stop_measure_btn.callOnClick(); //stop
+                    }
+                })
+                .setIcon(android.R.drawable.ic_dialog_alert).create();
+    }
+
+    protected void showBadConnectionDialog() {
+        if (!badConnectionDialogShown) {
+            badConnectionDialog.show();
+            badConnectionDialogShown = true;
+        }
+    }
+
+    private void initializeDeviceDisconnectedDialog() {
+        deviceDisconnectedDialog = new AlertDialog.Builder(this)
+                .setTitle("Device Disconnected!")
+                .setMessage("Make sure device is strapped and restart!")
+                .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        deviceDisconnectedDialogShown = false;
+                        stop_measure_btn.callOnClick();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        deviceDisconnectedDialogShown = false;
+                    }
+                })
+                .setIcon(android.R.drawable.ic_dialog_alert).create();
+    }
+
+    protected void showDeviceDisconnectedDialog() {
+        if (!deviceDisconnectedDialogShown) {
+
+            NotificationCompat.Builder mBuilder =
+                new NotificationCompat.Builder(this)
+                        .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                        .setContentTitle("Cardiograph")
+                        .setContentText("Device Disconnected!");
+
+            Intent resultIntent = new Intent(this, MainActivity.class);
+            resultIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            resultIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
+            PendingIntent resultPendingIntent =
+                PendingIntent.getActivity(
+                        this,
+                        0,
+                        resultIntent,
+                        PendingIntent.FLAG_UPDATE_CURRENT
+                );
+
+            mBuilder.setContentIntent(resultPendingIntent);
+
+            NotificationManager mNotifyMgr =
+                (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+
+            mNotifyMgr.notify(666, mBuilder.build());
+            playAlertRingTone();
+            deviceDisconnectedDialog.show();
+            deviceDisconnectedDialogShown = true;
+        }
+    }
+
+    private void playAlertRingTone() {
+        Uri notification = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+        Ringtone r = RingtoneManager.getRingtone(getApplicationContext(), notification);
+        r.play();
+    }
 
     /******              LOCATION               ******/
 
@@ -321,6 +474,19 @@ public class MainActivity extends AppCompatActivity {
                     ask_user_permission_for_location();
                 }
         }
+    }
+
+    private void setPreferenceChangeListener(){
+        prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        prefListener = new SharedPreferences.OnSharedPreferenceChangeListener() {
+            public void onSharedPreferenceChanged(SharedPreferences prefs, String key) {
+
+                if(key.equals("battery_level")) {
+                    batteryDialogShown = false;
+                }
+            }
+        };
+        prefs.registerOnSharedPreferenceChangeListener(prefListener);
     }
 
 }

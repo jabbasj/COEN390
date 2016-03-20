@@ -1,5 +1,6 @@
 package com.coen390.teamc.cardiograph;
 
+import android.app.NotificationManager;
 import android.app.ProgressDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
@@ -13,6 +14,8 @@ import android.os.Handler;
 import android.os.Message;
 import android.preference.PreferenceManager;
 import android.support.v7.app.AlertDialog;
+import android.widget.TextView;
+
 import zephyr.android.HxMBT.BTClient;
 import zephyr.android.HxMBT.ZephyrProtocol;
 import java.lang.reflect.Method;
@@ -22,22 +25,23 @@ import java.util.Date;
 
 public class BluetoothConnection {
 
-    public BTClient _bt;
-    public ZephyrProtocol _protocol;
-    public NewConnectedListener _NConnListener;
+    protected BTClient _bt;
+    protected ZephyrProtocol _protocol;
+    protected NewConnectedListener _NConnListener;
 
-    public BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-    public ArrayList<BluetoothDevice> mDeviceList = new ArrayList<BluetoothDevice>();
-    public BluetoothDevice mZephyr;
+    protected BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+    protected ArrayList<BluetoothDevice> mDeviceList = new ArrayList<BluetoothDevice>();
+    protected BluetoothDevice mZephyr;
     private Context mMainPageContext;
     private MainActivity mMainActivity;
     private ProgressDialog scanningDialog;
 
-    public boolean recordMeasurement = false;
+    protected boolean recordMeasurement = false;
+    static protected boolean updateLiveChart = true;
     private final int HEART_RATE = 0x100;
-    private final int INSTANT_SPEED = 0x101;
+    private final int BATTERY_PERCENT = 0x102;
 
-    public BluetoothConnection(Context ctx) {
+    protected BluetoothConnection(Context ctx) {
         mMainPageContext = ctx;
         mMainActivity = (MainActivity)ctx;
 
@@ -48,7 +52,7 @@ public class BluetoothConnection {
         scanningDialog.setCanceledOnTouchOutside(false);
     }
 
-    public boolean isBluetoothAvailable() {
+    protected boolean isBluetoothAvailable() {
         return (mBluetoothAdapter != null && mBluetoothAdapter.isEnabled());
     }
 
@@ -71,7 +75,7 @@ public class BluetoothConnection {
         }
     }
 
-    public void connectWithZephyr() {
+    protected void connectWithZephyr() {
         SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(mMainPageContext);
         String previous_mac = sp.getString("zephyr_mac_address", "");
 
@@ -105,13 +109,13 @@ public class BluetoothConnection {
         }
     }
 
-    public void connectListener() {
+    protected void connectListener() {
         _bt = new BTClient(mBluetoothAdapter, mZephyr.getAddress());
         _NConnListener = new NewConnectedListener(Newhandler, Newhandler);
         _bt.addConnectedEventListener(_NConnListener);
     }
 
-    public void disconnectListener() {
+    protected void disconnectListener() {
         /*This disconnects listener from acting on received messages*/
         if (_bt != null) {
             _bt.removeConnectedEventListener(_NConnListener);
@@ -122,6 +126,8 @@ public class BluetoothConnection {
 
     final Handler Newhandler = new Handler(){
         public void handleMessage(Message msg) {
+            String ns = Context.NOTIFICATION_SERVICE;
+            NotificationManager nMgr = (NotificationManager) mMainActivity.getSystemService(ns);
             switch (msg.what)
             {
                 case HEART_RATE:
@@ -134,14 +140,48 @@ public class BluetoothConnection {
 
                         if (Integer.parseInt(HeartRatetext) > 0) {
                             mMainActivity.myDBHelper.insertInstantaneousHeartRate(currentTimeStamp, HeartRatetext, "testRecord");
+
+                            if (updateLiveChart) {
+                                /** UPDATE LIVE GRAPH **/
+                                DataGraph.update(currentTimeStamp, HeartRatetext, "testRecord");
+                            }
+                        } else if (Integer.parseInt(HeartRatetext) < 0){
+                            mMainActivity.showBadConnectionDialog(); //not sure about this one...
                         }
                     }
                     break;
 
-                case INSTANT_SPEED:
-                    String InstantSpeedtext = msg.getData().getString("InstantSpeed");
-                    //if (tv != null)tv.setText(InstantSpeedtext);
-                    break;
+                case BATTERY_PERCENT:
+                    String BatteryPercent = msg.getData().getString("BatteryPercent");
+                    TextView sensor_battery_tv = (TextView) mMainActivity.findViewById(R.id.sensor_battery);
+                    sensor_battery_tv.setText("Sensor Battery: " + BatteryPercent + " %");
+
+
+                    /** CHECK IF BATTERY LOW **/
+                    SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(mMainPageContext);
+                    String min_battery_level = sp.getString("battery_level", "15");
+                    if (Integer.parseInt(BatteryPercent) < Integer.parseInt(min_battery_level) && Integer.parseInt(BatteryPercent) != 0) {
+
+                        mMainActivity.showBatteryLowDialog(); //show battery dialog and notification
+
+                    } else {
+                        if (mMainActivity.batteryLowDialog.isShowing()) {
+                            mMainActivity.batteryLowDialog.dismiss(); //remove battery dialog
+                            mMainActivity.batteryDialogShown = false;
+                            nMgr.cancel(777); //cancel battery notification
+                        }
+                    }
+
+                    /** CHECK IF DEVICE DISCONNECTED **/
+                    if (Integer.parseInt(BatteryPercent) == 0 && recordMeasurement) {
+
+                        mMainActivity.showDeviceDisconnectedDialog(); // show device disconnected dialog and notification
+
+                    } else if (mMainActivity.deviceDisconnectedDialog.isShowing()) {
+                        mMainActivity.deviceDisconnectedDialog.dismiss(); //remove disconnected dialog
+                        mMainActivity.deviceDisconnectedDialogShown = false;
+                        nMgr.cancel(666); //cancel disconnected notificaiton
+                    }
 
             }
         }
@@ -175,13 +215,13 @@ public class BluetoothConnection {
                 .show();
     }
 
-    public void enableBluetooth(){
+    protected void enableBluetooth(){
 
         Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
         mMainActivity.startActivityForResult(enableBtIntent, 1);
     }
 
-    public void setBluetoothListener() {
+    protected void setBluetoothListener() {
         IntentFilter filter = new IntentFilter();
 
         filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
@@ -192,7 +232,7 @@ public class BluetoothConnection {
         mMainActivity.registerReceiver(mReceiver, filter);
     }
 
-    public final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+    protected final BroadcastReceiver mReceiver = new BroadcastReceiver() {
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
 

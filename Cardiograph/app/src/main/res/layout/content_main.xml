@@ -87,5 +87,13 @@
         android:layout_alignEnd="@+id/live_pulse"
         android:layout_alignStart="@+id/live_pulse" />
 
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textAppearance="?android:attr/textAppearanceSmall"
+        android:id="@+id/sensor_battery"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentEnd="true" />
+
 
 </RelativeLayout>

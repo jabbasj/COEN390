@@ -14,7 +14,7 @@ public class NewConnectedListener extends ConnectListenerImpl
     private int HR_SPD_DIST_PACKET =0x26;
 
     private final int HEART_RATE = 0x100;
-    private final int INSTANT_SPEED = 0x101;
+    private final int BATTERY_PERCENT = 0x102;
     private HRSpeedDistPacketInfo HRSpeedDistPacket = new HRSpeedDistPacketInfo();
     public NewConnectedListener(Handler handler,Handler _NewHandler) {
         super(handler, null);
@@ -46,21 +46,45 @@ public class NewConnectedListener extends ConnectListenerImpl
 
                     //***************Displaying the Heart Rate********************************
                     int HRate =  HRSpeedDistPacket.GetHeartRate(DataArray);
+
                     Message text1 = _aNewHandler.obtainMessage(HEART_RATE);
                     Bundle b1 = new Bundle();
                     b1.putString("HeartRate", String.valueOf(HRate));
                     text1.setData(b1);
                     _aNewHandler.sendMessage(text1);
+
                     System.out.println("Heart Rate is "+ HRate);
 
                     //***************Displaying the Instant Speed********************************
+                    /*)
                     double InstantSpeed = HRSpeedDistPacket.GetInstantSpeed(DataArray);
 
                     text1 = _aNewHandler.obtainMessage(INSTANT_SPEED);
                     b1.putString("InstantSpeed", String.valueOf(InstantSpeed));
                     text1.setData(b1);
                     _aNewHandler.sendMessage(text1);
+
                     System.out.println("Instant Speed is "+ InstantSpeed);
+                    */
+                    //***************Displaying the Battery********************************
+                    int Battery = HRSpeedDistPacket.GetBatteryChargeInd(DataArray);
+
+                    text1 = _aNewHandler.obtainMessage(BATTERY_PERCENT);
+                    b1.putString("BatteryPercent", String.valueOf(Battery));
+                    text1.setData(b1);
+                    _aNewHandler.sendMessage(text1);
+
+                    System.out.println("Battery is " + Battery + "%");
+
+                    //***************Displaying the Heart beat Timestamps********************************
+                    /*
+                    int[] test = HRSpeedDistPacket.GetHeartBeatTS(DataArray);
+
+                    for (int i = 0; i < test.length; i++ ) {
+                        //System.out.println("heartTS " + test[i]);
+                    }
+                    */
+
 
                 }
             }
