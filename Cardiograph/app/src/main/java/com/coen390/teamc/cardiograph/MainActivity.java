@@ -32,7 +32,6 @@ import android.widget.Toast;
 import com.nhaarman.supertooltips.ToolTip;
 import com.nhaarman.supertooltips.ToolTipRelativeLayout;
 import com.nhaarman.supertooltips.ToolTipView;
-
 import java.util.ArrayList;
 
 
@@ -84,7 +83,6 @@ public class MainActivity extends AppCompatActivity {
         setSupportActionBar(toolbar);
 
         ask_user_permission_for_location();
-
 
         myDBHelper = new DB_Helper(this);
 
@@ -279,9 +277,11 @@ public class MainActivity extends AppCompatActivity {
 
     private void hideRecordBtn() {
         start_recording_btn.setVisibility(View.GONE);
-        start_recording_btn.setCompoundDrawablesWithIntrinsicBounds(null, null , null, null);
+        start_recording_btn.setCompoundDrawablesWithIntrinsicBounds(null, null, null, null);
         showMeasureBtn();
     }
+
+
 
 
 
