@@ -1,5 +1,6 @@
 package com.coen390.teamc.cardiograph;
 
+import android.R;
 import android.app.NotificationManager;
 import android.app.ProgressDialog;
 import android.bluetooth.BluetoothAdapter;
@@ -10,11 +11,12 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.res.Resources;
+import android.graphics.drawable.Drawable;
 import android.os.Handler;
 import android.os.Message;
 import android.preference.PreferenceManager;
 import android.support.v7.app.AlertDialog;
-import android.widget.TextView;
 
 import zephyr.android.HxMBT.BTClient;
 import zephyr.android.HxMBT.ZephyrProtocol;
@@ -145,21 +147,25 @@ public class BluetoothConnection {
                                 /** UPDATE LIVE GRAPH **/
                                 DataGraph.update(currentTimeStamp, HeartRatetext, "testRecord");
                             }
-                        } else if (Integer.parseInt(HeartRatetext) < 0){
+                        }
+
+                        if (Integer.parseInt(HeartRatetext) < 0){
                             mMainActivity.showBadConnectionDialog(); //not sure about this one...
+                        } else {
+                            mMainActivity.badConnectionDialogShown = false;
+                            nMgr.cancel(888);
                         }
                     }
                     break;
 
                 case BATTERY_PERCENT:
                     String BatteryPercent = msg.getData().getString("BatteryPercent");
-                    TextView sensor_battery_tv = (TextView) mMainActivity.findViewById(R.id.sensor_battery);
-                    sensor_battery_tv.setText("Sensor Battery: " + BatteryPercent + " %");
+                    mMainActivity.sensor_battery_tv.setText("Sensor Battery: " + BatteryPercent + " % ");
+                    updateSensorBatteryIcon(Integer.parseInt(BatteryPercent));
 
 
                     /** CHECK IF BATTERY LOW **/
-                    SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(mMainPageContext);
-                    String min_battery_level = sp.getString("battery_level", "15");
+                    String min_battery_level = mMainActivity.getStringPreference("battery_level", "15");
                     if (Integer.parseInt(BatteryPercent) < Integer.parseInt(min_battery_level) && Integer.parseInt(BatteryPercent) != 0) {
 
                         mMainActivity.showBatteryLowDialog(); //show battery dialog and notification
@@ -257,9 +263,8 @@ public class BluetoothConnection {
 
             } else if (BluetoothDevice.ACTION_FOUND.equals(action)) {
 
-                SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(mMainPageContext);
-                String previous_mac = sp.getString("zephyr_mac_address", "");
-                String previous_name = sp.getString("zephyr_name", "HXM");
+                String previous_mac = mMainActivity.getStringPreference("zephyr_mac_address", "");
+                String previous_name = mMainActivity.getStringPreference("zephyr_name", "HXM");
 
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                 mDeviceList.add(device);
@@ -291,4 +296,34 @@ public class BluetoothConnection {
             }
         }
     };
+
+    private void updateSensorBatteryIcon(int level) {
+
+        int id = Resources.getSystem().getIdentifier("stat_sys_battery_100", "drawable", "android");
+
+        if (level < 100 && level >= 85) {
+            id = Resources.getSystem().getIdentifier("stat_sys_battery_85", "drawable", "android");
+        }
+        else if (level < 85 && level >= 60) {
+            id = Resources.getSystem().getIdentifier("stat_sys_battery_71", "drawable", "android");
+        }
+        else if (level < 60 && level >= 50) {
+            id = Resources.getSystem().getIdentifier("stat_sys_battery_57", "drawable", "android");
+        }
+        else if (level < 50 && level >= 28) {
+            id = Resources.getSystem().getIdentifier("stat_sys_battery_43", "drawable", "android");
+        }
+        else if (level < 28 && level >= 16) {
+            id = Resources.getSystem().getIdentifier("stat_sys_battery_28", "drawable", "android");
+        }
+        else if (level < 16 && level >= 5) {
+            id = Resources.getSystem().getIdentifier("stat_sys_battery_15", "drawable", "android");
+        }
+        else if (level < 5 && level >= 0) {
+            id = Resources.getSystem().getIdentifier("stat_sys_battery_0", "drawable", "android");
+        }
+
+        Drawable right = mMainActivity.getResources().getDrawable(id);
+        mMainActivity.sensor_battery_tv.setCompoundDrawablesWithIntrinsicBounds(null,null,right,null);
+    }
 }

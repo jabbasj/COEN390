@@ -49,11 +49,5 @@
         android:summary="Enable if you are at high risk for heart condition"
         android:title="High risk" />
 
-    <SwitchPreference
-        android:defaultValue="true"
-        android:key="alert_switch"
-        android:summary="Enable if you want your emergency contacts to be alerted in case of danger"
-        android:title="Alert Contacts?" />
-
 
 </PreferenceScreen>

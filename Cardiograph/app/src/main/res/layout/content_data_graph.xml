@@ -17,7 +17,8 @@
         android:id="@+id/chart"
         android:layout_width="match_parent"
         android:layout_height="300dp"
-        android:layout_alignParentStart="true" />
+        android:layout_alignParentTop="true"
+        android:layout_alignParentEnd="true" />
 
     <Button
         android:layout_width="wrap_content"
@@ -26,11 +27,11 @@
         android:text="Delete All"
         android:visibility="visible"
         android:id="@+id/clear_all_instantaneous_heartrates"
-        android:layout_marginBottom="51dp"
         android:minHeight="0dp"
         android:minWidth="0dp"
-        android:layout_alignParentBottom="true"
-        android:layout_centerHorizontal="true" />
+        android:layout_below="@+id/chart"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="97dp" />
 
     <Button
         android:layout_width="wrap_content"

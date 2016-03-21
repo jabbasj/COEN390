@@ -4,24 +4,26 @@
          when checked/unchecked. -->
     <SwitchPreference
         android:defaultValue="true"
-        android:key="notifications_new_message"
-        android:title="@string/pref_title_new_message_notifications" />
+        android:key="notifications_enabled"
+        android:summary="Notifications are caused when a serious error occurs (device disconnected, low sensor battery, bad connection)"
+        android:title="Enable notifications (with sound)" />
 
     <!-- Allows the user to choose a ringtone in the 'notification' category. -->
     <!-- NOTE: This preference will be enabled only when the checkbox above is checked. -->
     <!-- NOTE: RingtonePreference's summary should be set to its value by the activity code. -->
     <RingtonePreference
         android:defaultValue="content://settings/system/notification_sound"
-        android:dependency="notifications_new_message"
-        android:key="notifications_new_message_ringtone"
+        android:dependency="notifications_enabled"
+        android:key="notifications_ringtone"
         android:ringtoneType="notification"
         android:title="@string/pref_title_ringtone" />
 
     <!-- NOTE: This preference will be enabled only when the checkbox above is checked. -->
     <SwitchPreference
         android:defaultValue="true"
-        android:dependency="notifications_new_message"
-        android:key="notifications_new_message_vibrate"
+        android:dependency="notifications_enabled"
+        android:key="notifications_vibrate"
+        android:summary="Vibrate along with notifications"
         android:title="@string/pref_title_vibrate" />
 
     <EditTextPreference
@@ -30,6 +32,12 @@
         android:defaultValue="15"
         android:summary="Set at which battery % you want to be alerted (15% recommended)"
         android:title="Battery Warning" />
+
+    <SwitchPreference
+        android:defaultValue="true"
+        android:key="alert_contacts_switch"
+        android:summary="Enable if you want your emergency contacts to be alerted in case of danger"
+        android:title="Alert Contacts?" />
 
 
 </PreferenceScreen>
