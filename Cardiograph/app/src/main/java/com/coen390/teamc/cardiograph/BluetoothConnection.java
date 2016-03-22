@@ -1,6 +1,5 @@
 package com.coen390.teamc.cardiograph;
 
-import android.R;
 import android.app.NotificationManager;
 import android.app.ProgressDialog;
 import android.bluetooth.BluetoothAdapter;
@@ -17,6 +16,7 @@ import android.os.Handler;
 import android.os.Message;
 import android.preference.PreferenceManager;
 import android.support.v7.app.AlertDialog;
+import android.util.Log;
 
 import zephyr.android.HxMBT.BTClient;
 import zephyr.android.HxMBT.ZephyrProtocol;
@@ -39,9 +39,14 @@ public class BluetoothConnection {
     private ProgressDialog scanningDialog;
 
     protected boolean recordMeasurement = false;
-    static protected boolean updateLiveChart = true;
+    static protected boolean updateLiveHeartRateChart = false;
+    static protected boolean updateLiveECGChart = false;
     private final int HEART_RATE = 0x100;
     private final int BATTERY_PERCENT = 0x102;
+    private final int HEART_BEAT_TIMESTAMPS = 0x103;
+    private final int HEART_BEAT_NUMBER = 0x104;
+
+    protected int previous_hr_num = 0;
 
     protected BluetoothConnection(Context ctx) {
         mMainPageContext = ctx;
@@ -134,6 +139,7 @@ public class BluetoothConnection {
             {
                 case HEART_RATE:
                     String HeartRatetext = msg.getData().getString("HeartRate");
+
                     if (mMainActivity.live_pulse_tv != null) mMainActivity.live_pulse_tv.setText(HeartRatetext + " bpm");
 
                     if (recordMeasurement) {
@@ -143,25 +149,29 @@ public class BluetoothConnection {
                         if (Integer.parseInt(HeartRatetext) > 0) {
                             mMainActivity.myDBHelper.insertInstantaneousHeartRate(currentTimeStamp, HeartRatetext, "testRecord");
 
-                            if (updateLiveChart) {
+                            if (updateLiveHeartRateChart) {
                                 /** UPDATE LIVE GRAPH **/
-                                DataGraph.update(currentTimeStamp, HeartRatetext, "testRecord");
+                                DataGraph.updateLiveHeartRate(currentTimeStamp, HeartRatetext, "testRecord");
                             }
                         }
 
-                        if (Integer.parseInt(HeartRatetext) < 0){
+                        /** CHECK IF BAD CONNECTION
+                        if (Integer.parseInt(HeartRatetext) == 0){
                             mMainActivity.showBadConnectionDialog(); //not sure about this one...
                         } else {
                             mMainActivity.badConnectionDialogShown = false;
                             nMgr.cancel(888);
                         }
+                         **/
                     }
                     break;
 
                 case BATTERY_PERCENT:
                     String BatteryPercent = msg.getData().getString("BatteryPercent");
                     mMainActivity.sensor_battery_tv.setText("Sensor Battery: " + BatteryPercent + " % ");
-                    updateSensorBatteryIcon(Integer.parseInt(BatteryPercent));
+                    if (BatteryPercent != null) {
+                        updateSensorBatteryIcon(Integer.parseInt(BatteryPercent));
+                    }
 
 
                     /** CHECK IF BATTERY LOW **/
@@ -186,8 +196,56 @@ public class BluetoothConnection {
                     } else if (mMainActivity.deviceDisconnectedDialog.isShowing()) {
                         mMainActivity.deviceDisconnectedDialog.dismiss(); //remove disconnected dialog
                         mMainActivity.deviceDisconnectedDialogShown = false;
-                        nMgr.cancel(666); //cancel disconnected notificaiton
+                        nMgr.cancel(666); //cancel disconnected notification
                     }
+
+                    break;
+
+                case HEART_BEAT_TIMESTAMPS:
+                    int[] HeartBeatTimeStamps = msg.getData().getIntArray("HeartbeatTimeStamps");
+                    /*  The Timestamp rolls over after 65535 ms */
+
+                    int HeartBeatNumber = msg.getData().getInt("HeartbeatNumber");
+                    /* The count rolls over after 255 */
+
+                    if (previous_hr_num == 0) {
+                        previous_hr_num = HeartBeatNumber;
+                    }
+
+                    /*unsigned int */
+                    int new_HR_beats = HeartBeatNumber - previous_hr_num;
+                    if (new_HR_beats < 0) {
+                        new_HR_beats = -1 * new_HR_beats;
+                    }
+                    if ( new_HR_beats != 0 ) {
+                        for (int i = 0; i < new_HR_beats ; i++ ) {
+                            int RR = HeartBeatTimeStamps[i] - HeartBeatTimeStamps[i+1];
+                            if (RR < 0) {
+                                //overflow occured
+                                RR = 65535 + RR;
+                            }
+                            Log.d("Latest R-R interval", "         " + String.valueOf(RR));
+                        }
+                        previous_hr_num = HeartBeatNumber;
+                    }
+
+
+                    /*
+                    Log.d("heart_beat_num", String.valueOf(HeartBeatNumber));
+
+                    for (int i = 0; i < HeartBeatTimeStamps.length; i++) {
+                        Log.d("confirmed", String.valueOf(HeartBeatTimeStamps[i]));
+                    }
+
+                    String currentYear = new SimpleDateFormat("yyyy").format(new Date());
+                    String currentMonth = new SimpleDateFormat("MM").format(new Date());
+                    String currentDay = new SimpleDateFormat("dd").format(new Date());
+                    String currentHour = new SimpleDateFormat("HH").format(new Date());
+                    String currentMinute = new SimpleDateFormat("mm").format(new Date());
+                    String currentSecond = new SimpleDateFormat("ss").format(new Date());
+                    */
+
+                    break;
 
             }
         }

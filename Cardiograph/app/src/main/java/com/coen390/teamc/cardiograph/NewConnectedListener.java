@@ -15,6 +15,8 @@ public class NewConnectedListener extends ConnectListenerImpl
 
     private final int HEART_RATE = 0x100;
     private final int BATTERY_PERCENT = 0x102;
+    private final int HEART_BEAT_TIMESTAMPS = 0x103;
+    private final int HEART_BEAT_NUMBER = 0x104;
     private HRSpeedDistPacketInfo HRSpeedDistPacket = new HRSpeedDistPacketInfo();
     public NewConnectedListener(Handler handler,Handler _NewHandler) {
         super(handler, null);
@@ -47,6 +49,11 @@ public class NewConnectedListener extends ConnectListenerImpl
                     //***************Displaying the Heart Rate********************************
                     int HRate =  HRSpeedDistPacket.GetHeartRate(DataArray);
 
+                    /* unsigned int */
+                    if (HRate < 0)  {
+                        HRate = -1 * HRate;
+                    }
+
                     Message text1 = _aNewHandler.obtainMessage(HEART_RATE);
                     Bundle b1 = new Bundle();
                     b1.putString("HeartRate", String.valueOf(HRate));
@@ -69,6 +76,11 @@ public class NewConnectedListener extends ConnectListenerImpl
                     //***************Displaying the Battery********************************
                     int Battery = HRSpeedDistPacket.GetBatteryChargeInd(DataArray);
 
+                    /* unsigned int */
+                    if (Battery < 0)  {
+                        Battery = -1 * Battery;
+                    }
+
                     text1 = _aNewHandler.obtainMessage(BATTERY_PERCENT);
                     b1.putString("BatteryPercent", String.valueOf(Battery));
                     text1.setData(b1);
@@ -77,11 +89,23 @@ public class NewConnectedListener extends ConnectListenerImpl
                     System.out.println("Battery is " + Battery + "%");
 
                     //***************Displaying the Heart beat Timestamps********************************
-                    /*
-                    int[] test = HRSpeedDistPacket.GetHeartBeatTS(DataArray);
 
-                    for (int i = 0; i < test.length; i++ ) {
-                        //System.out.println("heartTS " + test[i]);
+                    int[] heartBeatTS = HRSpeedDistPacket.GetHeartBeatTS(DataArray);
+                    int heartbeatNumber = HRSpeedDistPacket.GetHeartBeatNum(DataArray);
+                    /* unsigned int
+                    if (heartbeatNumber < 0)  {
+                        heartbeatNumber = -1 * heartbeatNumber;
+                    }*/
+
+                    text1 = _aNewHandler.obtainMessage(HEART_BEAT_TIMESTAMPS);
+                    b1.putIntArray("HeartbeatTimeStamps", heartBeatTS);
+                    b1.putInt("HeartbeatNumber", heartbeatNumber);
+                    text1.setData(b1);
+                    _aNewHandler.sendMessage(text1);
+
+                    /*
+                    for (int i =0; i < heartBeatTS.length; i ++ ) {
+                        System.out.println("HeartBeat @ " + heartBeatTS[i] + " ms");
                     }
                     */
 

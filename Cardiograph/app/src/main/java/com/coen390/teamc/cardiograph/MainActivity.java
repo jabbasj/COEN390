@@ -22,7 +22,6 @@ import android.support.v4.app.NotificationCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
-import android.util.Log;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -166,6 +165,8 @@ public class MainActivity extends AppCompatActivity {
                 case R.id.stop_measure:
                     mBluetoothConnection.disconnectListener();
                     mBluetoothConnection.recordMeasurement = false;
+                    BluetoothConnection.updateLiveHeartRateChart = false;
+                    BluetoothConnection.updateLiveECGChart = false;
                     hideRecordBtn();
                     showToast("Stopped!");
                     break;
@@ -207,6 +208,13 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onStart() {
         super.onStart();
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        BluetoothConnection.updateLiveHeartRateChart = false;
+        BluetoothConnection.updateLiveECGChart = false;
     }
 
     @Override

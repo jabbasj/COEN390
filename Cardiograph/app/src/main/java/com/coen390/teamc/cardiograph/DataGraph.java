@@ -10,12 +10,15 @@ import android.support.v7.app.ActionBarDrawerToggle;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.Gravity;
+import android.view.LayoutInflater;
+import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ListView;
+import android.widget.Toast;
 
 import com.github.mikephil.charting.charts.LineChart;
 
@@ -83,16 +86,13 @@ public class DataGraph extends AppCompatActivity {
 
         reset_scale_btn.setOnClickListener(new CustomClickLister());
         delete_alL_btn.setOnClickListener(new CustomClickLister());
+
+        graphLiveHeartRate();
     }
 
     @Override
     protected void onResume(){
         super.onResume();
-
-        getAllInstantaneousHeartRates();
-        fillEntriesAndSetDataSet();
-        mChart.notifyDataSetChanged();
-        mChart.invalidate();
     }
 
     private class CustomClickLister implements View.OnClickListener {
@@ -113,7 +113,9 @@ public class DataGraph extends AppCompatActivity {
         }
     }
 
-    private void fillEntriesAndSetDataSet(){
+    private void graphLiveHeartRate(){
+
+        getAllInstantaneousHeartRates();
 
         mEntries = new ArrayList<>();
 
@@ -146,9 +148,29 @@ public class DataGraph extends AppCompatActivity {
         mChart.getXAxis().setDrawGridLines(false);
 
         mChart.setAutoScaleMinMaxEnabled(true);
+
+        mChart.notifyDataSetChanged();
+        mChart.invalidate();
+
+        BluetoothConnection.updateLiveHeartRateChart = true;
     }
 
-    static protected void update(String timeStamp, String heartRate, String note){
+    private void getAllInstantaneousHeartRates() {
+        Cursor cursor = myDBHelper.getAllInstantaneousHeartRates();
+        mHeartRates = new ArrayList<>();
+
+        if (cursor != null && cursor.moveToFirst()) {
+            do {
+                String heartrateDate = cursor.getString(0);
+                String heartrateValue = cursor.getString(1);
+                String heartrateNote = cursor.getString(2);
+                mHeartRates.add(new heartRate(heartrateDate, heartrateValue, heartrateNote));
+            }while (cursor.moveToNext());
+            cursor.close();
+        }
+    }
+
+    static protected void updateLiveHeartRate(String timeStamp, String heartRate, String note){
         if (mChart != null) {
 
             heartRate new_hr = new heartRate(timeStamp, heartRate, note);
@@ -165,6 +187,20 @@ public class DataGraph extends AppCompatActivity {
             mChart.invalidate();
             //mChart.fitScreen();
         }
+    }
+
+    private void getAllInstantaneousHeartBeats() {
+
+    }
+
+    protected void graphLiveECGChart() {
+        getAllInstantaneousHeartBeats();
+
+        BluetoothConnection.updateLiveECGChart = true;
+    }
+
+    static void updateLiveECG(String timeStamp) {
+
     }
 
     static private int computeAvg() {
@@ -205,30 +241,44 @@ public class DataGraph extends AppCompatActivity {
         return ll;
     }
 
-    private void getAllInstantaneousHeartRates() {
-        Cursor cursor = myDBHelper.getAllInstantaneousHeartRates();
-        mHeartRates = new ArrayList<>();
-
-        if (cursor != null && cursor.moveToFirst()) {
-            do {
-                String heartrateDate = cursor.getString(0);
-                String heartrateValue = cursor.getString(1);
-                String heartrateNote = cursor.getString(2);
-                mHeartRates.add(new heartRate(heartrateDate, heartrateValue, heartrateNote));
-            }while (cursor.moveToNext());
-            cursor.close();
-        }
-    }
-
     private void addDrawerItems() {
-        String[] osArray = { "NavItem1", "NavItem2", "NavItem3", "NavItem4", "NavItem5" };
-        mAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, osArray);
+
+        LayoutInflater inflater = getLayoutInflater();
+        View listHeaderView = inflater.inflate(R.layout.nav_header,null, false);
+        mDrawerList.addHeaderView(listHeaderView);
+
+        String[] osArray = { "New Record", "Saved Records", "Live Heart Rate", "Live ECG", "Potential Danger" };
+        /**      positions:       1              2                   3              4              5            **/
+        mAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, osArray);
         mDrawerList.setAdapter(mAdapter);
 
         mDrawerList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                //item clicked
+                switch (position) {
+                    case 1 /** New Record **/:
+                        delete_alL_btn.callOnClick();
+                        BluetoothConnection.updateLiveHeartRateChart = false;
+                        closeDrawer();
+                        break;
+                    case 2 /** Saved Records **/:
+                        BluetoothConnection.updateLiveHeartRateChart = false;
+                        closeDrawer();
+                        break;
+                    case 3 /** Live Heart Rate **/:
+                        graphLiveHeartRate();
+                        showToast("Showing Live Heart Rate");
+                        closeDrawer();
+                        break;
+                    case 4 /** Live ECG **/:
+                        BluetoothConnection.updateLiveHeartRateChart = false;
+                        closeDrawer();
+                        break;
+                    case 5 /** Potential Danger **/:
+                        BluetoothConnection.updateLiveHeartRateChart = false;
+                        closeDrawer();
+                        break;
+                }
             }
         });
     }
@@ -253,9 +303,17 @@ public class DataGraph extends AppCompatActivity {
         mDrawerLayout.setDrawerListener(mDrawerToggle);
     }
 
-    public void openDrawer()
+    private  void openDrawer()
     {
         mDrawerLayout.openDrawer(Gravity.LEFT);
+    }
+
+    private void closeDrawer() {
+        mDrawerLayout.closeDrawer(Gravity.LEFT);
+    }
+
+    protected void showToast(String message) {
+        Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
     }
 
     @Override
@@ -265,9 +323,19 @@ public class DataGraph extends AppCompatActivity {
             case android.R.id.home:
                 finish();
                 return true;
+
+            case R.id.action_trigger_drawer:
+                openDrawer();
+                break;
         }
         return super.onOptionsItemSelected(item);
     }
 
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        getMenuInflater().inflate(R.menu.menu_graph, menu);
+        return true;
+    }
 
 }
