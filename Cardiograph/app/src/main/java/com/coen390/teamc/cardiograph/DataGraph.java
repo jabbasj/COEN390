@@ -44,15 +44,37 @@ public class DataGraph extends AppCompatActivity {
         }
     }
 
+    static private class rrInterval {
+        String mRRInterval;
+        String mDate;
+        String mNote;
+
+        rrInterval  (String date, String rate, String note) {
+            mDate = date;
+            mRRInterval = rate;
+            mNote = note;
+        }
+    }
+
     private DB_Helper myDBHelper;
 
     static protected List<heartRate>  mHeartRates = new ArrayList<>();
+    static protected List<rrInterval> mRRIntervals = new ArrayList<>();
 
     static protected LineChart mChart;
-    static private ArrayList<Entry> mEntries;
-    static private ArrayList<String> labels;
-    private LineDataSet mDataSet;
+
+    /** Heart Rate chart stuff **/
+    static private ArrayList<Entry> mHR_Entries;
+    static private ArrayList<String> mHR_labels;
+    static private LineDataSet mHR_DataSet;
     private boolean limit_lines_add_once = false;
+    private LimitLine Max_LimitLine;
+    private LimitLine Min_LimitLine;
+
+    /** RR interval chart stuff **/
+    static private ArrayList<Entry> mRR_Entries;
+    static private ArrayList<String> mRR_labels;
+    static private LineDataSet mRR_DataSet;
 
     private Button delete_alL_btn;
     private Button reset_scale_btn;
@@ -101,13 +123,14 @@ public class DataGraph extends AppCompatActivity {
             switch (v.getId()) {
                 case R.id.clear_all_instantaneous_heartrates:
                     myDBHelper.deleteAllInstantaneousHeartRates();
+                    myDBHelper.deleteAllRRIntervals();
                     mChart.clear();
                     onResume();
                     break;
 
                 case R.id.reset_scale:
-                    onResume();
                     mChart.fitScreen();
+                    onResume();
                     break;
             }
         }
@@ -117,30 +140,30 @@ public class DataGraph extends AppCompatActivity {
 
         getAllInstantaneousHeartRates();
 
-        mEntries = new ArrayList<>();
+        mHR_Entries = new ArrayList<>();
 
         for (int i = 0; i < mHeartRates.size(); i++ ) {
-            mEntries.add(new Entry(Integer.parseInt(mHeartRates.get(i).mHeatRate), i));
+            mHR_Entries.add(new Entry(Integer.parseInt(mHeartRates.get(i).mHeatRate), i));
         }
 
-        mDataSet = new LineDataSet(mEntries, "Live Heart Rate");
-        labels = new ArrayList<>(); //time
+        mHR_DataSet = new LineDataSet(mHR_Entries, "Heart Rate (bpm)");
+        mHR_labels = new ArrayList<>(); //time
 
         for (int j = 0; j < mHeartRates.size(); j++ ) {
-            labels.add(mHeartRates.get(j).mDate);
+            mHR_labels.add(mHeartRates.get(j).mDate);
         }
 
-        mDataSet.setDrawCubic(false); //rounded -> true causes bug!!!
-        mDataSet.setDrawFilled(true); //fill under line
-        mDataSet.setFillColor(Color.parseColor("#b8005c"));
-        mDataSet.setDrawCircles(false); //remove data 'points'
+        mHR_DataSet.setDrawCubic(false); //rounded -> true causes bug!!!
+        mHR_DataSet.setDrawFilled(true); //fill under line
+        mHR_DataSet.setFillColor(Color.parseColor("#b8005c"));
+        mHR_DataSet.setDrawCircles(false); //remove data 'points'
 
-        LineData data = new LineData(labels, mDataSet);
+        LineData data = new LineData(mHR_labels, mHR_DataSet);
         data.setDrawValues(false);
         ADD_MAX_AND_MIN_LINES();
 
         mChart.setData(data);
-        mChart.setDescription("Average: " + computeAvg());
+        mChart.setDescription("Average: " + computeAvgHeartRate());
 
         //hide grid
         mChart.getAxisLeft().setDrawGridLines(false);
@@ -176,34 +199,98 @@ public class DataGraph extends AppCompatActivity {
             heartRate new_hr = new heartRate(timeStamp, heartRate, note);
             mHeartRates.add(new_hr);
 
-            mEntries.add(new Entry(Integer.parseInt(new_hr.mHeatRate), mHeartRates.size()));
-            labels.add(new_hr.mDate);
+            mHR_Entries.add(new Entry(Integer.parseInt(new_hr.mHeatRate), mHeartRates.size()));
+            mHR_labels.add(new_hr.mDate);
 
-            mChart.setDescription("Average: " + computeAvg());
-
-            mChart.setAutoScaleMinMaxEnabled(true);
+            mChart.setDescription("Average: " + computeAvgHeartRate());
 
             mChart.notifyDataSetChanged();
-            mChart.invalidate();
-            //mChart.fitScreen();
+
+            mChart.setVisibleXRangeMaximum(30);
+            mChart.moveViewToX(mHeartRates.size() - 31);
+            //mChart.invalidate();
         }
     }
 
-    private void getAllInstantaneousHeartBeats() {
+    private void getAllRRIntervals() {
+        Cursor cursor = myDBHelper.getAllRRIntervals();
+
+        mRRIntervals = new ArrayList<>();
+
+        if (cursor != null && cursor.moveToFirst()) {
+            do {
+                String rrDate = cursor.getString(0);
+                String rrValue = cursor.getString(1);
+                String rrNote = cursor.getString(2);
+                mRRIntervals.add(new rrInterval(rrDate, rrValue, rrNote));
+            }while (cursor.moveToNext());
+            cursor.close();
+        }
 
     }
 
-    protected void graphLiveECGChart() {
-        getAllInstantaneousHeartBeats();
+    private void graphLiveECGChart() {
+        removeLimitLines();
+        getAllRRIntervals();
+
+        mRR_Entries = new ArrayList<>();
+
+        for (int i = 0; i < mRRIntervals.size(); i++ ) {
+
+            mRR_Entries.add(new Entry(Integer.parseInt(mRRIntervals.get(i).mRRInterval), i));
+        }
+
+        mRR_DataSet = new LineDataSet(mRR_Entries, "Beat-to-Beat Intervals (ms)");
+        mRR_labels = new ArrayList<>();
+
+        for (int j = 0; j < mRRIntervals.size(); j++ ) {
+
+            mRR_labels.add(mRRIntervals.get(j).mDate);
+        }
+
+        mRR_DataSet.setDrawCubic(false); //rounded -> true causes bug!!!
+        mRR_DataSet.setDrawFilled(false); //don't fill under line
+        mRR_DataSet.setDrawCircles(false); //remove data 'points'
+
+        LineData data = new LineData(mRR_labels, mRR_DataSet);
+        data.setDrawValues(false);//?
+
+        mChart.setData(data);
+        mChart.setDescription("Min: " + computeMinRRInterval() + "  Max: " + computeMaxRRInterval() + "  Avg: " + computeAvgRRInterval());
+
+        //hide grid
+        mChart.getAxisLeft().setDrawGridLines(false);
+        mChart.getAxisRight().setDrawGridLines(false);
+        mChart.getXAxis().setDrawGridLines(false);
+
+        mChart.setAutoScaleMinMaxEnabled(true);
+
+        mChart.notifyDataSetChanged();
+        mChart.invalidate();
 
         BluetoothConnection.updateLiveECGChart = true;
     }
 
-    static void updateLiveECG(String timeStamp) {
+    static protected void updateLiveECG(String timeStamp, String rrInterval, String note) {
 
+        if (mChart != null ) {
+            rrInterval new_rr = new rrInterval(timeStamp, rrInterval, note);
+            mRRIntervals.add(new_rr);
+
+            mRR_Entries.add(new Entry(Integer.parseInt(new_rr.mRRInterval), mRRIntervals.size()));
+            mRR_labels.add(new_rr.mDate);
+
+            mChart.notifyDataSetChanged();
+            mChart.setVisibleXRangeMaximum(30);
+            mChart.moveViewToX(mRRIntervals.size() - 31);
+
+            mChart.setDescription("Min: " + computeMinRRInterval() + "  Max: " + computeMaxRRInterval() + "  Avg: " + computeAvgRRInterval());
+            //mChart.invalidate();
+
+        }
     }
 
-    static private int computeAvg() {
+    static private int computeAvgHeartRate() {
         int sum = 0;
         for (int i=0; i < mHeartRates.size(); i++) {
             sum += Integer.parseInt(mHeartRates.get(i).mHeatRate);
@@ -215,30 +302,82 @@ public class DataGraph extends AppCompatActivity {
         return sum/mHeartRates.size();
     }
 
+    static private int computeAvgRRInterval() {
+        int sum = 0;
+        for (int i=0; i < mRRIntervals.size(); i++) {
+            sum += Integer.parseInt(mRRIntervals.get(i).mRRInterval);
+        }
+
+        if (mRRIntervals.size() == 0) {
+            return 0;
+        }
+        return sum/mRRIntervals.size();
+    }
+
+    static private int computeMinRRInterval() {
+        int min = 0;
+        if (mRRIntervals.size() > 0) {
+            min = Integer.parseInt(mRRIntervals.get(0).mRRInterval);
+
+            for (int i = 1; i < mRRIntervals.size(); i++) {
+                if (Integer.parseInt(mRRIntervals.get(i).mRRInterval) < min) {
+                    min = Integer.parseInt(mRRIntervals.get(i).mRRInterval);
+                }
+            }
+        }
+        return min;
+    }
+
+    static private int computeMaxRRInterval() {
+        int max = 0;
+
+        if (mRRIntervals.size() > 0) {
+
+            max = Integer.parseInt(mRRIntervals.get(0).mRRInterval);
+
+            for (int i = 1; i < mRRIntervals.size(); i++) {
+                if (Integer.parseInt(mRRIntervals.get(i).mRRInterval) > max) {
+                    max = Integer.parseInt(mRRIntervals.get(i).mRRInterval);
+                }
+            }
+        }
+        return max;
+    }
+
     private void ADD_MAX_AND_MIN_LINES() {
         if (!limit_lines_add_once) {
             SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
             String MAX_LIMIT = sp.getString("max_heart_rate", "");
             String MIN_LIMIT = sp.getString("min_heart_rate", "");
+            createLimitLines(MAX_LIMIT, MIN_LIMIT);
 
             if (!MAX_LIMIT.equals("")) {
-                mChart.getAxisLeft().addLimitLine(getLimitLineAt(Integer.parseInt(MAX_LIMIT), "MAX"));
+                mChart.getAxisLeft().addLimitLine(Max_LimitLine);
             }
 
             if (!MIN_LIMIT.equals("")) {
-                mChart.getAxisLeft().addLimitLine(getLimitLineAt(Integer.parseInt(MIN_LIMIT), "MIN"));
+                mChart.getAxisLeft().addLimitLine(Min_LimitLine);
             }
-
-            limit_lines_add_once = true;
         }
     }
 
-    private LimitLine getLimitLineAt(int xIndex, String text) {
-        LimitLine ll = new LimitLine(xIndex); // set where the line should be drawn
-        ll.setLineColor(Color.BLACK);
-        ll.setLineWidth(1);
-        ll.setLabel(text);
-        return ll;
+    private void createLimitLines(String MAX_LIMIT, String MIN_LIMIT) {
+        limit_lines_add_once = true;
+
+        Max_LimitLine = new LimitLine(Integer.parseInt(MAX_LIMIT)); // set where the line should be drawn
+        Max_LimitLine.setLineColor(Color.BLACK);
+        Max_LimitLine.setLineWidth(1);
+        Max_LimitLine.setLabel("MAX");
+
+        Min_LimitLine = new LimitLine(Integer.parseInt(MIN_LIMIT));
+        Max_LimitLine.setLineColor(Color.BLACK);
+        Max_LimitLine.setLineWidth(1);
+        Max_LimitLine.setLabel("MIN");
+    }
+
+    private void removeLimitLines() {
+        mChart.getAxisLeft().removeAllLimitLines();
+        limit_lines_add_once = false;
     }
 
     private void addDrawerItems() {
@@ -257,25 +396,32 @@ public class DataGraph extends AppCompatActivity {
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 switch (position) {
                     case 1 /** New Record **/:
-                        delete_alL_btn.callOnClick();
                         BluetoothConnection.updateLiveHeartRateChart = false;
+                        BluetoothConnection.updateLiveECGChart = false;
                         closeDrawer();
                         break;
                     case 2 /** Saved Records **/:
                         BluetoothConnection.updateLiveHeartRateChart = false;
+                        BluetoothConnection.updateLiveECGChart = false;
                         closeDrawer();
                         break;
                     case 3 /** Live Heart Rate **/:
+                        BluetoothConnection.updateLiveECGChart = false;
+                        mChart.clear();
                         graphLiveHeartRate();
                         showToast("Showing Live Heart Rate");
                         closeDrawer();
                         break;
                     case 4 /** Live ECG **/:
                         BluetoothConnection.updateLiveHeartRateChart = false;
+                        mChart.clear();
+                        graphLiveECGChart();
+                        showToast("Showing Live ECG");
                         closeDrawer();
                         break;
                     case 5 /** Potential Danger **/:
                         BluetoothConnection.updateLiveHeartRateChart = false;
+                        BluetoothConnection.updateLiveECGChart = false;
                         closeDrawer();
                         break;
                 }

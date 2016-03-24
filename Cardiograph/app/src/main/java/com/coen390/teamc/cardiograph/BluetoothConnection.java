@@ -117,6 +117,7 @@ public class BluetoothConnection {
     }
 
     protected void connectListener() {
+        previous_hr_num = 0;
         _bt = new BTClient(mBluetoothAdapter, mZephyr.getAddress());
         _NConnListener = new NewConnectedListener(Newhandler, Newhandler);
         _bt.addConnectedEventListener(_NConnListener);
@@ -149,7 +150,7 @@ public class BluetoothConnection {
                         if (Integer.parseInt(HeartRatetext) > 0) {
                             mMainActivity.myDBHelper.insertInstantaneousHeartRate(currentTimeStamp, HeartRatetext, "testRecord");
 
-                            if (updateLiveHeartRateChart) {
+                            if (updateLiveHeartRateChart && DataGraph.mChart.isShown()) {
                                 /** UPDATE LIVE GRAPH **/
                                 DataGraph.updateLiveHeartRate(currentTimeStamp, HeartRatetext, "testRecord");
                             }
@@ -170,35 +171,34 @@ public class BluetoothConnection {
                     String BatteryPercent = msg.getData().getString("BatteryPercent");
                     mMainActivity.sensor_battery_tv.setText("Sensor Battery: " + BatteryPercent + " % ");
                     if (BatteryPercent != null) {
+
                         updateSensorBatteryIcon(Integer.parseInt(BatteryPercent));
-                    }
 
+                        /** CHECK IF BATTERY LOW **/
+                        String min_battery_level = mMainActivity.getStringPreference("battery_level", "15");
+                        if (Integer.parseInt(BatteryPercent) < Integer.parseInt(min_battery_level) && Integer.parseInt(BatteryPercent) != 0) {
 
-                    /** CHECK IF BATTERY LOW **/
-                    String min_battery_level = mMainActivity.getStringPreference("battery_level", "15");
-                    if (Integer.parseInt(BatteryPercent) < Integer.parseInt(min_battery_level) && Integer.parseInt(BatteryPercent) != 0) {
+                            mMainActivity.showBatteryLowDialog(); //show battery dialog and notification
 
-                        mMainActivity.showBatteryLowDialog(); //show battery dialog and notification
+                        } else {
+                            if (mMainActivity.batteryLowDialog.isShowing()) {
+                                mMainActivity.batteryLowDialog.dismiss(); //remove battery dialog
+                                mMainActivity.batteryDialogShown = false;
+                                nMgr.cancel(777); //cancel battery notification
+                            }
+                        }
 
-                    } else {
-                        if (mMainActivity.batteryLowDialog.isShowing()) {
-                            mMainActivity.batteryLowDialog.dismiss(); //remove battery dialog
-                            mMainActivity.batteryDialogShown = false;
-                            nMgr.cancel(777); //cancel battery notification
+                        /** CHECK IF DEVICE DISCONNECTED **/
+                        if (Integer.parseInt(BatteryPercent) == 0 && recordMeasurement) {
+
+                            mMainActivity.showDeviceDisconnectedDialog(); // show device disconnected dialog and notification
+
+                        } else if (mMainActivity.deviceDisconnectedDialog.isShowing()) {
+                            mMainActivity.deviceDisconnectedDialog.dismiss(); //remove disconnected dialog
+                            mMainActivity.deviceDisconnectedDialogShown = false;
+                            nMgr.cancel(666); //cancel disconnected notification
                         }
                     }
-
-                    /** CHECK IF DEVICE DISCONNECTED **/
-                    if (Integer.parseInt(BatteryPercent) == 0 && recordMeasurement) {
-
-                        mMainActivity.showDeviceDisconnectedDialog(); // show device disconnected dialog and notification
-
-                    } else if (mMainActivity.deviceDisconnectedDialog.isShowing()) {
-                        mMainActivity.deviceDisconnectedDialog.dismiss(); //remove disconnected dialog
-                        mMainActivity.deviceDisconnectedDialogShown = false;
-                        nMgr.cancel(666); //cancel disconnected notification
-                    }
-
                     break;
 
                 case HEART_BEAT_TIMESTAMPS:
@@ -215,38 +215,35 @@ public class BluetoothConnection {
                     /*unsigned int */
                     int new_HR_beats = HeartBeatNumber - previous_hr_num;
                     if (new_HR_beats < 0) {
-                        new_HR_beats = -1 * new_HR_beats;
+                        //overflow occured
+                        new_HR_beats = 256 + new_HR_beats;
                     }
-                    if ( new_HR_beats != 0 ) {
-                        for (int i = 0; i < new_HR_beats ; i++ ) {
-                            int RR = HeartBeatTimeStamps[i] - HeartBeatTimeStamps[i+1];
-                            if (RR < 0) {
-                                //overflow occured
-                                RR = 65535 + RR;
+                    //Log.d("new heart beats", String.valueOf(new_HR_beats));
+
+                    if ( new_HR_beats != 0) {
+
+                        if (recordMeasurement) {
+                            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                            String currentTimeStamp = dateFormat.format(new Date());
+
+                            for (int i = 0; i < new_HR_beats; i++) {
+                                int RR = HeartBeatTimeStamps[i] - HeartBeatTimeStamps[i + 1];
+                                if (RR < 0) {
+                                    //overflow occured
+                                    RR = 65536 + RR;
+                                }
+                                Log.d("Latest R-R interval", "         " + String.valueOf(RR));
+                                mMainActivity.myDBHelper.insertRRInterval(currentTimeStamp, String.valueOf(RR), "testRecord");
+
+                                if (updateLiveECGChart && DataGraph.mChart.isShown()) {
+                                    DataGraph.updateLiveECG(currentTimeStamp, String.valueOf(RR), "testRecord");
+                                }
                             }
-                            Log.d("Latest R-R interval", "         " + String.valueOf(RR));
                         }
-                        previous_hr_num = HeartBeatNumber;
+
                     }
-
-
-                    /*
-                    Log.d("heart_beat_num", String.valueOf(HeartBeatNumber));
-
-                    for (int i = 0; i < HeartBeatTimeStamps.length; i++) {
-                        Log.d("confirmed", String.valueOf(HeartBeatTimeStamps[i]));
-                    }
-
-                    String currentYear = new SimpleDateFormat("yyyy").format(new Date());
-                    String currentMonth = new SimpleDateFormat("MM").format(new Date());
-                    String currentDay = new SimpleDateFormat("dd").format(new Date());
-                    String currentHour = new SimpleDateFormat("HH").format(new Date());
-                    String currentMinute = new SimpleDateFormat("mm").format(new Date());
-                    String currentSecond = new SimpleDateFormat("ss").format(new Date());
-                    */
-
+                    previous_hr_num = HeartBeatNumber;
                     break;
-
             }
         }
 

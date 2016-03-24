@@ -92,10 +92,6 @@ public class NewConnectedListener extends ConnectListenerImpl
 
                     int[] heartBeatTS = HRSpeedDistPacket.GetHeartBeatTS(DataArray);
                     int heartbeatNumber = HRSpeedDistPacket.GetHeartBeatNum(DataArray);
-                    /* unsigned int
-                    if (heartbeatNumber < 0)  {
-                        heartbeatNumber = -1 * heartbeatNumber;
-                    }*/
 
                     text1 = _aNewHandler.obtainMessage(HEART_BEAT_TIMESTAMPS);
                     b1.putIntArray("HeartbeatTimeStamps", heartBeatTS);
