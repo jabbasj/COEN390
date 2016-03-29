@@ -38,9 +38,7 @@ public class BluetoothConnection {
     private MainActivity mMainActivity;
     private ProgressDialog scanningDialog;
 
-    protected boolean recordMeasurement = false;
-    static protected boolean updateLiveHeartRateChart = false;
-    static protected boolean updateLiveECGChart = false;
+    static protected boolean recordMeasurement = false;
     private final int HEART_RATE = 0x100;
     private final int BATTERY_PERCENT = 0x102;
     private final int HEART_BEAT_TIMESTAMPS = 0x103;
@@ -148,11 +146,11 @@ public class BluetoothConnection {
                         String currentTimeStamp = dateFormat.format(new Date());
 
                         if (Integer.parseInt(HeartRatetext) > 0) {
-                            mMainActivity.myDBHelper.insertInstantaneousHeartRate(currentTimeStamp, HeartRatetext, "testRecord");
+                            mMainActivity.myDBHelper.insertInstantaneousHeartRate(currentTimeStamp, HeartRatetext, mMainActivity.mCurrentRecord);
 
-                            if (updateLiveHeartRateChart && DataGraph.mChart.isShown()) {
+                            if (DataGraph.current_graph.equals("HR") && DataGraph.mChart.isShown()) {
                                 /** UPDATE LIVE GRAPH **/
-                                DataGraph.updateLiveHeartRate(currentTimeStamp, HeartRatetext, "testRecord");
+                                DataGraph.updateLiveHeartRate(currentTimeStamp, HeartRatetext, mMainActivity.mCurrentRecord);
                             }
                         }
 
@@ -169,7 +167,7 @@ public class BluetoothConnection {
 
                 case BATTERY_PERCENT:
                     String BatteryPercent = msg.getData().getString("BatteryPercent");
-                    mMainActivity.sensor_battery_tv.setText("Sensor Battery: " + BatteryPercent + " % ");
+                    mMainActivity.sensor_battery_tv.setText("Sensor Battery: " + BatteryPercent + "% ");
                     if (BatteryPercent != null) {
 
                         updateSensorBatteryIcon(Integer.parseInt(BatteryPercent));
@@ -233,10 +231,10 @@ public class BluetoothConnection {
                                     RR = 65536 + RR;
                                 }
                                 Log.d("Latest R-R interval", "         " + String.valueOf(RR));
-                                mMainActivity.myDBHelper.insertRRInterval(currentTimeStamp, String.valueOf(RR), "testRecord");
+                                mMainActivity.myDBHelper.insertRRInterval(currentTimeStamp, String.valueOf(RR), mMainActivity.mCurrentRecord);
 
-                                if (updateLiveECGChart && DataGraph.mChart.isShown()) {
-                                    DataGraph.updateLiveECG(currentTimeStamp, String.valueOf(RR), "testRecord");
+                                if (DataGraph.current_graph.equals("ECG") && DataGraph.mChart.isShown()) {
+                                    DataGraph.updateLiveECG(currentTimeStamp, String.valueOf(RR), mMainActivity.mCurrentRecord);
                                 }
                             }
                         }
@@ -263,7 +261,7 @@ public class BluetoothConnection {
                         SharedPreferences.Editor prefEditor = sp.edit();
                         prefEditor.putString("zephyr_mac_address", mZephyr.getAddress());
                         prefEditor.putString("zephyr_name", mZephyr.getName());
-                        prefEditor.commit();
+                        prefEditor.apply();
                         mMainActivity.onResume();
                     }
                 })

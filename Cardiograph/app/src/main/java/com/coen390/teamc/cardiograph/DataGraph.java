@@ -1,5 +1,7 @@
 package com.coen390.teamc.cardiograph;
 
+import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.graphics.Color;
@@ -7,6 +9,7 @@ import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBarDrawerToggle;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.Gravity;
@@ -17,6 +20,7 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.Toast;
 
@@ -27,6 +31,7 @@ import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
 
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -67,7 +72,7 @@ public class DataGraph extends AppCompatActivity {
     static private ArrayList<Entry> mHR_Entries;
     static private ArrayList<String> mHR_labels;
     static private LineDataSet mHR_DataSet;
-    private boolean limit_lines_add_once = false;
+    static private boolean limit_lines_add_once = false;
     private LimitLine Max_LimitLine;
     private LimitLine Min_LimitLine;
 
@@ -85,6 +90,8 @@ public class DataGraph extends AppCompatActivity {
     private ArrayAdapter<String> mAdapter;
     private ActionBarDrawerToggle mDrawerToggle;
 
+    static protected String current_graph = "HR";
+    protected String selectedRecord = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -93,6 +100,7 @@ public class DataGraph extends AppCompatActivity {
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        getSupportActionBar().setSubtitle(MainActivity.mCurrentRecord);
 
         mDrawerList = (ListView)findViewById(R.id.navList);
         mDrawerLayout = (DrawerLayout)findViewById(R.id.drawer_layout);
@@ -103,27 +111,44 @@ public class DataGraph extends AppCompatActivity {
         myDBHelper = new DB_Helper(this);
         mChart = (LineChart) findViewById(R.id.chart);
 
-        delete_alL_btn = (Button) findViewById(R.id.clear_all_instantaneous_heartrates);
+        delete_alL_btn = (Button) findViewById(R.id.clear_record);
         reset_scale_btn = (Button) findViewById(R.id.reset_scale);
 
         reset_scale_btn.setOnClickListener(new CustomClickLister());
         delete_alL_btn.setOnClickListener(new CustomClickLister());
 
-        graphLiveHeartRate();
+        if (MainActivity.mCurrentRecord != "") {
+            if (current_graph.equals("HR")) {
+                graphLiveHeartRate();
+            }
+            if (current_graph.equals("ECG")) {
+                graphLiveECGChart();
+            }
+        } else {
+            openDrawer();
+        }
     }
 
     @Override
     protected void onResume(){
         super.onResume();
+        getSupportActionBar().setSubtitle(MainActivity.mCurrentRecord);
+        if (current_graph.equals("HR")) {
+            graphLiveHeartRate();
+        }
+
+        if (current_graph.equals("ECG")) {
+            graphLiveECGChart();
+        }
     }
 
     private class CustomClickLister implements View.OnClickListener {
         @Override
         public void onClick(View v) {
             switch (v.getId()) {
-                case R.id.clear_all_instantaneous_heartrates:
-                    myDBHelper.deleteAllInstantaneousHeartRates();
-                    myDBHelper.deleteAllRRIntervals();
+                case R.id.clear_record:
+                    myDBHelper.deleteAllInstantaneousHeartRates(selectedRecord);
+                    myDBHelper.deleteAllRRIntervals(selectedRecord);
                     mChart.clear();
                     onResume();
                     break;
@@ -138,7 +163,10 @@ public class DataGraph extends AppCompatActivity {
 
     private void graphLiveHeartRate(){
 
+        current_graph = "HR";
+
         getAllInstantaneousHeartRates();
+        ADD_MAX_AND_MIN_LINES();
 
         mHR_Entries = new ArrayList<>();
 
@@ -160,7 +188,6 @@ public class DataGraph extends AppCompatActivity {
 
         LineData data = new LineData(mHR_labels, mHR_DataSet);
         data.setDrawValues(false);
-        ADD_MAX_AND_MIN_LINES();
 
         mChart.setData(data);
         mChart.setDescription("Average: " + computeAvgHeartRate());
@@ -174,12 +201,10 @@ public class DataGraph extends AppCompatActivity {
 
         mChart.notifyDataSetChanged();
         mChart.invalidate();
-
-        BluetoothConnection.updateLiveHeartRateChart = true;
     }
 
     private void getAllInstantaneousHeartRates() {
-        Cursor cursor = myDBHelper.getAllInstantaneousHeartRates();
+        Cursor cursor = myDBHelper.getAllInstantaneousHeartRates(MainActivity.mCurrentRecord);
         mHeartRates = new ArrayList<>();
 
         if (cursor != null && cursor.moveToFirst()) {
@@ -195,6 +220,13 @@ public class DataGraph extends AppCompatActivity {
 
     static protected void updateLiveHeartRate(String timeStamp, String heartRate, String note){
         if (mChart != null) {
+
+            if (mChart.getData() == null) {
+                LineData data = new LineData(mHR_labels, mHR_DataSet);
+                data.setDrawValues(false);
+
+                mChart.setData(data);
+            }
 
             heartRate new_hr = new heartRate(timeStamp, heartRate, note);
             mHeartRates.add(new_hr);
@@ -213,7 +245,7 @@ public class DataGraph extends AppCompatActivity {
     }
 
     private void getAllRRIntervals() {
-        Cursor cursor = myDBHelper.getAllRRIntervals();
+        Cursor cursor = myDBHelper.getAllRRIntervals(MainActivity.mCurrentRecord);
 
         mRRIntervals = new ArrayList<>();
 
@@ -230,6 +262,9 @@ public class DataGraph extends AppCompatActivity {
     }
 
     private void graphLiveECGChart() {
+
+        current_graph = "ECG";
+
         removeLimitLines();
         getAllRRIntervals();
 
@@ -267,13 +302,20 @@ public class DataGraph extends AppCompatActivity {
 
         mChart.notifyDataSetChanged();
         mChart.invalidate();
-
-        BluetoothConnection.updateLiveECGChart = true;
     }
 
     static protected void updateLiveECG(String timeStamp, String rrInterval, String note) {
 
         if (mChart != null ) {
+
+            if (mChart.getData() == null) {
+                if (mChart.getData() == null) {
+                    LineData data = new LineData(mRR_labels, mRR_DataSet);
+                    data.setDrawValues(false);
+                    mChart.setData(data);
+                }
+            }
+
             rrInterval new_rr = new rrInterval(timeStamp, rrInterval, note);
             mRRIntervals.add(new_rr);
 
@@ -345,19 +387,21 @@ public class DataGraph extends AppCompatActivity {
     }
 
     private void ADD_MAX_AND_MIN_LINES() {
-        if (!limit_lines_add_once) {
-            SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
-            String MAX_LIMIT = sp.getString("max_heart_rate", "");
-            String MIN_LIMIT = sp.getString("min_heart_rate", "");
-            createLimitLines(MAX_LIMIT, MIN_LIMIT);
+        if (limit_lines_add_once) {
+            removeLimitLines();
+        }
 
-            if (!MAX_LIMIT.equals("")) {
-                mChart.getAxisLeft().addLimitLine(Max_LimitLine);
-            }
+        SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+        String MAX_LIMIT = sp.getString("max_heart_rate", "");
+        String MIN_LIMIT = sp.getString("min_heart_rate", "");
+        createLimitLines(MAX_LIMIT, MIN_LIMIT);
 
-            if (!MIN_LIMIT.equals("")) {
-                mChart.getAxisLeft().addLimitLine(Min_LimitLine);
-            }
+        if (!MAX_LIMIT.equals("")) {
+            mChart.getAxisLeft().addLimitLine(Max_LimitLine);
+        }
+
+        if (!MIN_LIMIT.equals("")) {
+            mChart.getAxisLeft().addLimitLine(Min_LimitLine);
         }
     }
 
@@ -370,14 +414,16 @@ public class DataGraph extends AppCompatActivity {
         Max_LimitLine.setLabel("MAX");
 
         Min_LimitLine = new LimitLine(Integer.parseInt(MIN_LIMIT));
-        Max_LimitLine.setLineColor(Color.BLACK);
-        Max_LimitLine.setLineWidth(1);
-        Max_LimitLine.setLabel("MIN");
+        Min_LimitLine.setLineColor(Color.BLACK);
+        Min_LimitLine.setLineWidth(1);
+        Min_LimitLine.setLabel("MIN");
     }
 
-    private void removeLimitLines() {
-        mChart.getAxisLeft().removeAllLimitLines();
-        limit_lines_add_once = false;
+    static protected void removeLimitLines() {
+        if (mChart != null) {
+            mChart.getAxisLeft().removeAllLimitLines();
+            limit_lines_add_once = false;
+        }
     }
 
     private void addDrawerItems() {
@@ -396,32 +442,26 @@ public class DataGraph extends AppCompatActivity {
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 switch (position) {
                     case 1 /** New Record **/:
-                        BluetoothConnection.updateLiveHeartRateChart = false;
-                        BluetoothConnection.updateLiveECGChart = false;
+                        showNewRecordDialog(view);
                         closeDrawer();
                         break;
                     case 2 /** Saved Records **/:
-                        BluetoothConnection.updateLiveHeartRateChart = false;
-                        BluetoothConnection.updateLiveECGChart = false;
+                        showSavedRecordsDialog(view);
                         closeDrawer();
                         break;
                     case 3 /** Live Heart Rate **/:
-                        BluetoothConnection.updateLiveECGChart = false;
                         mChart.clear();
                         graphLiveHeartRate();
                         showToast("Showing Live Heart Rate");
                         closeDrawer();
                         break;
                     case 4 /** Live ECG **/:
-                        BluetoothConnection.updateLiveHeartRateChart = false;
                         mChart.clear();
                         graphLiveECGChart();
                         showToast("Showing Live ECG");
                         closeDrawer();
                         break;
                     case 5 /** Potential Danger **/:
-                        BluetoothConnection.updateLiveHeartRateChart = false;
-                        BluetoothConnection.updateLiveECGChart = false;
                         closeDrawer();
                         break;
                 }
@@ -436,12 +476,15 @@ public class DataGraph extends AppCompatActivity {
             public void onDrawerOpened(View drawerView) {
                 super.onDrawerOpened(drawerView);
                 invalidateOptionsMenu(); // creates call to onPrepareOptionsMenu()
+                getSupportActionBar().setSubtitle(MainActivity.mCurrentRecord);
             }
 
             /** Called when a drawer has settled in a completely closed state. */
             public void onDrawerClosed(View view) {
                 super.onDrawerClosed(view);
                 invalidateOptionsMenu(); // creates call to onPrepareOptionsMenu()
+                getSupportActionBar().setSubtitle(selectedRecord);
+                getSupportActionBar().setSubtitle(MainActivity.mCurrentRecord);
             }
         };
 
@@ -456,6 +499,121 @@ public class DataGraph extends AppCompatActivity {
 
     private void closeDrawer() {
         mDrawerLayout.closeDrawer(Gravity.LEFT);
+    }
+
+
+    protected void showNewRecordDialog(final View v){
+        LayoutInflater inflater = this.getLayoutInflater();
+        final View inflator = inflater.inflate(R.layout.new_record_dialog, null);
+        new AlertDialog.Builder(v.getContext())
+                .setView(inflator)
+                .setTitle("New Record")
+                .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        EditText tv = (EditText) inflator.findViewById(R.id.record_name);
+                        String name = tv.getText().toString();
+
+                        if (!myDBHelper.checkIfRecordExists(name) && !name.equals("")) {
+
+                            MainActivity.mCurrentRecord = name;
+                            if (BluetoothConnection.recordMeasurement) {
+                                MainActivity.stop_measure_btn.callOnClick();
+                            }
+                            Intent main_activity = new Intent(DataGraph.this, MainActivity.class);
+                            startActivity(main_activity);
+
+                        } else {
+                            showToast("Name already used!");
+                            showNewRecordDialog(v);
+                        }
+                    }
+                })
+                .setNegativeButton(android.R.string.no, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        // do nothing
+                    }
+                })
+                .setIcon(android.R.drawable.ic_dialog_alert)
+                .show();
+    }
+
+    protected void setRecord(String record) {
+        selectedRecord = record;
+    }
+
+    private class records {
+        String record_name;
+        String first_date;
+        String last_date;
+
+        records(String name, String first, String last) {
+            record_name = name;
+            first_date = first;
+            last_date = last;
+        }
+    }
+
+    protected void showSavedRecordsDialog(final View v){
+        setRecord("");
+
+        final LayoutInflater inflater = this.getLayoutInflater();
+        final View inflator = inflater.inflate(R.layout.saved_records_dialog, null);
+
+        ArrayList<String> mRecords = myDBHelper.getUniqueRecords();
+        ArrayList<records> true_records = new ArrayList<>();
+        final ArrayList<records> true_records_final = true_records;
+        for (int i = 0; i < mRecords.size(); i++) {
+            String first_date = myDBHelper.getFirstTimestampFromRecord(mRecords.get(i));
+            String last_date = myDBHelper.getLastTimestampFromRecord(mRecords.get(i));
+            true_records.add(new records(mRecords.get(i), first_date, last_date));
+            mRecords.set(i, mRecords.get(i) + "\nStart: " + first_date + "\nEnd: " + last_date);
+        }
+
+        ArrayAdapter<String> mRecordsAdapter = new ArrayAdapter<>
+                (this, R.layout.list_item_record,R.id.list_item_record_textview, mRecords);
+
+        ListView listView = (ListView) inflator.findViewById(R.id.saved_records);
+        listView.setAdapter(mRecordsAdapter);
+
+        AdapterView.OnItemClickListener listener = new AdapterView.OnItemClickListener() {
+            public void onItemClick (AdapterView < ? > parent, View view,int position, long id){
+                //setRecord(parent.getItemAtPosition(position).toString());
+                setRecord(true_records_final.get(position).record_name);
+            }
+        };
+        listView.setOnItemClickListener(listener);
+
+        new AlertDialog.Builder(v.getContext())
+                .setView(inflator)
+                .setTitle("Saved Records")
+                .setPositiveButton("SELECT", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        if (!selectedRecord.equals("")) {
+                            if (BluetoothConnection.recordMeasurement && !selectedRecord.equals(MainActivity.mCurrentRecord))
+                            {
+                                MainActivity.stop_measure_btn.callOnClick();
+                            }
+                            MainActivity.mCurrentRecord = selectedRecord;
+                            onResume();
+                        }
+                    }
+                })
+                .setNegativeButton("DELETE", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+
+                        if (!selectedRecord.equals("")) {
+                            delete_alL_btn.callOnClick();
+                            if (MainActivity.mCurrentRecord.equals(selectedRecord)) {
+                                MainActivity.stop_measure_btn.callOnClick();
+                                MainActivity.mCurrentRecord = "";
+                                mChart.clear();
+                                Intent main_activity = new Intent(DataGraph.this, MainActivity.class);
+                                startActivity(main_activity);
+                            }
+                        }
+                    }
+                })
+                .show();
     }
 
     protected void showToast(String message) {

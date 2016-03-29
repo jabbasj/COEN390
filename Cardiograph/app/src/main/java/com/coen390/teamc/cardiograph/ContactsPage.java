@@ -221,10 +221,10 @@ public class ContactsPage extends AppCompatActivity {
 
         if (cursor != null && cursor.moveToFirst()) {
             do {
-                String contactName = new String(cursor.getString(0));
-                String contactPhone = new String(cursor.getString(1));
-                String contactPriority = new String(cursor.getString(2));
-                String contactAction = new String(cursor.getString(3));
+                String contactName = cursor.getString(0);
+                String contactPhone = cursor.getString(1);
+                String contactPriority = cursor.getString(2);
+                String contactAction = cursor.getString(3);
                 mContacts.add(contactName + " (" + contactPhone + ")" + " - " + contactAction + " - " + contactPriority);
                 true_Contacts.add(new contact(contactName, contactPhone, contactPriority, contactAction));
             }while (cursor.moveToNext());

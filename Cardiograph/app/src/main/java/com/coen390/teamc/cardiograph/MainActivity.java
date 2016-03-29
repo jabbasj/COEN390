@@ -41,7 +41,9 @@ public class MainActivity extends AppCompatActivity {
     private String BLUETOOTH_NOT_ENABLED = "BLUETOOTH NOT ENABLED!";
     private String NO_DEVICES_FOUND = "NO DEVICES FOUND!";
     private String ZEPHYR_NOT_CONNECTED = "ZEPHYR NOT CONNECTED!";
-    public ArrayList<String> PROBLEMS_DETECTED;
+    private String NO_EMERGENCY_CONTACTS = "NO EMERGENCY CONTACTS!";
+    protected ArrayList<String> PROBLEMS_DETECTED;
+
 
     /** UI **/
     private ToolTipView mErrorWarningToolTipView;
@@ -59,9 +61,9 @@ public class MainActivity extends AppCompatActivity {
     private TextView warning_tv;
     protected TextView live_pulse_tv;
     protected TextView sensor_battery_tv;
-    private Button measure_btn;
-    private Button stop_measure_btn;
-    private Button start_recording_btn;
+    static protected Button measure_btn;
+    static protected  Button stop_measure_btn;
+    static protected Button start_recording_btn;
     private Button view_data_btn;
 
     /** Backend **/
@@ -69,6 +71,8 @@ public class MainActivity extends AppCompatActivity {
     private BluetoothConnection mBluetoothConnection;
     private SharedPreferences.OnSharedPreferenceChangeListener prefListener;
     private SharedPreferences prefs;
+
+    static protected String mCurrentRecord = "";
 
 
     /******                 ENTRY                 ******/
@@ -117,6 +121,7 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         detectProblems();
         mBluetoothConnection.setBluetoothListener();
+        getSupportActionBar().setSubtitle(mCurrentRecord);
 
         if (!PROBLEMS_DETECTED.isEmpty()){
             showWarning();
@@ -147,6 +152,10 @@ public class MainActivity extends AppCompatActivity {
             PROBLEMS_DETECTED.add(NO_DEVICES_FOUND);
         }
 
+        if (myDBHelper.getAllContacts().getCount() == 0) {
+            PROBLEMS_DETECTED.add(NO_EMERGENCY_CONTACTS);
+        }
+
     }
 
     private class CustomClickLister implements View.OnClickListener {
@@ -164,18 +173,24 @@ public class MainActivity extends AppCompatActivity {
 
                 case R.id.stop_measure:
                     mBluetoothConnection.disconnectListener();
+                    if (mBluetoothConnection.recordMeasurement) {
+                        showToast("Stopped!");
+                    }
                     mBluetoothConnection.recordMeasurement = false;
-                    BluetoothConnection.updateLiveHeartRateChart = false;
-                    BluetoothConnection.updateLiveECGChart = false;
                     hideRecordBtn();
-                    showToast("Stopped!");
                     break;
 
                 case R.id.start_record:
-                    mBluetoothConnection.recordMeasurement = true;
-                    Drawable left = getResources().getDrawable(android.R.drawable.presence_online);
-                    start_recording_btn.setCompoundDrawablesWithIntrinsicBounds(left, null, null, null);
-                    showToast("Recording!");
+                    if (mCurrentRecord != "") {
+                        mBluetoothConnection.recordMeasurement = true;
+                        Drawable left = getResources().getDrawable(android.R.drawable.presence_online);
+                        start_recording_btn.setCompoundDrawablesWithIntrinsicBounds(left, null, null, null);
+                        showToast("Recording!");
+                    } else {
+                        showToast("Create New Record first!");
+                        Intent data_graph_page = new Intent(MainActivity.this, DataGraph.class);
+                        startActivity(data_graph_page);
+                    }
                     break;
 
                 case R.id.view_data:
@@ -195,7 +210,9 @@ public class MainActivity extends AppCompatActivity {
                         } else {
                             mBluetoothConnection.mBluetoothAdapter.startDiscovery();
                         }
-
+                    } else if (NO_EMERGENCY_CONTACTS.equals(PROBLEMS_DETECTED.get(0))){
+                        Intent contacts_page = new Intent(MainActivity.this, ContactsPage.class);
+                        startActivity(contacts_page);
                     }
                     break;
             }
@@ -213,8 +230,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onPause() {
         super.onPause();
-        BluetoothConnection.updateLiveHeartRateChart = false;
-        BluetoothConnection.updateLiveECGChart = false;
     }
 
     @Override
@@ -262,28 +277,28 @@ public class MainActivity extends AppCompatActivity {
         Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
     }
 
-    private void showMeasureBtn(){
+    static protected void showMeasureBtn(){
         measure_btn.setVisibility(View.VISIBLE);
     }
 
-    private void hideMeasureBtn() {
+    static protected void hideMeasureBtn() {
         measure_btn.setVisibility(View.GONE);
     }
 
-    private void showStopMeasureBtn() {
+    static protected void showStopMeasureBtn() {
         stop_measure_btn.setVisibility(View.VISIBLE);
     }
 
-    private void hideStopMeasureBtn() {
+    static protected void hideStopMeasureBtn() {
         stop_measure_btn.setVisibility(View.GONE);
     }
 
-    private void showRecordBtn() {
+    static protected void showRecordBtn() {
         start_recording_btn.setVisibility(View.VISIBLE);
         hideMeasureBtn();
     }
 
-    private void hideRecordBtn() {
+    static protected void hideRecordBtn() {
         start_recording_btn.setVisibility(View.GONE);
         start_recording_btn.setCompoundDrawablesWithIntrinsicBounds(null, null, null, null);
         showMeasureBtn();
@@ -337,11 +352,13 @@ public class MainActivity extends AppCompatActivity {
                 .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int which) {
                         batteryDialogShown = false;
+                        onResume();
                     }
                 })
                 .setNegativeButton(android.R.string.cancel, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int which) {
                         //batteryDialogShown = false; escape alerts ?
+                        onResume();
                     }
                 })
                 .setIcon(android.R.drawable.ic_dialog_alert).create();
@@ -449,11 +466,13 @@ public class MainActivity extends AppCompatActivity {
                     public void onClick(DialogInterface dialog, int which) {
                         deviceDisconnectedDialogShown = false;
                         stop_measure_btn.callOnClick();
+                        onResume();
                     }
                 })
                 .setNegativeButton(android.R.string.cancel, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int which) {
                         deviceDisconnectedDialogShown = false;
+                        onResume();
                     }
                 })
                 .setIcon(android.R.drawable.ic_dialog_alert).create();
@@ -549,6 +568,10 @@ public class MainActivity extends AppCompatActivity {
 
                 if(key.equals("battery_level")) {
                     batteryDialogShown = false;
+                }
+
+                if(key.equals("max_heart_rate") || key.equals("min_heart_rate")) {
+                    DataGraph.removeLimitLines();
                 }
             }
         };

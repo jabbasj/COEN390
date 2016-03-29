@@ -6,6 +6,8 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.util.Log;
 
+import java.util.ArrayList;
+
 public class DB_Helper extends SQLiteOpenHelper {
     // If you change the database schema, you must increment the database version.
     private static final int DATABASE_VERSION = 2;
@@ -89,12 +91,12 @@ public class DB_Helper extends SQLiteOpenHelper {
                 heartRate + "','" + note + "');");
     }
 
-    protected Cursor getAllInstantaneousHeartRates() {
-        return customQuery("SELECT * FROM " + DB_Contract.InstantaneousHeartRateEntry.TABLE_NAME + ";");
+    protected Cursor getAllInstantaneousHeartRates(String record_name) {
+        return customQuery("SELECT * FROM " + DB_Contract.InstantaneousHeartRateEntry.TABLE_NAME + " WHERE " + DB_Contract.InstantaneousHeartRateEntry.NOTE_COLUMN + " = \"" + record_name +"\";");
     }
 
-    protected void deleteAllInstantaneousHeartRates() {
-        getReadableDatabase().delete(DB_Contract.InstantaneousHeartRateEntry.TABLE_NAME, null, null);
+    protected void deleteAllInstantaneousHeartRates(String record_name) {
+        getReadableDatabase().delete(DB_Contract.InstantaneousHeartRateEntry.TABLE_NAME, DB_Contract.InstantaneousHeartRateEntry.NOTE_COLUMN + " = ?", new String[] {record_name});
     }
 
 
@@ -106,12 +108,65 @@ public class DB_Helper extends SQLiteOpenHelper {
                 RR_interval + "','" + note + "');");
     }
 
-    protected Cursor getAllRRIntervals() {
-        return customQuery("SELECT * FROM " + DB_Contract.RRIntervals.TABLE_NAME + ";");
+    protected Cursor getAllRRIntervals(String record_name) {
+        return customQuery("SELECT * FROM " + DB_Contract.RRIntervals.TABLE_NAME + " WHERE " + DB_Contract.RRIntervals.NOTE_COLUMN + " = \"" + record_name +"\";");
     }
 
-    protected void deleteAllRRIntervals() {
-        getReadableDatabase().delete(DB_Contract.RRIntervals.TABLE_NAME, null, null);
+    protected void deleteAllRRIntervals(String record_name) {
+        getReadableDatabase().delete(DB_Contract.RRIntervals.TABLE_NAME, DB_Contract.RRIntervals.NOTE_COLUMN + " = ?", new String[] {record_name});
+    }
+
+
+
+    /********************* Records *******************************/
+
+    protected boolean checkIfRecordExists(String name) {
+        boolean exists = false;
+
+        Cursor cursor = customQuery("SELECT Distinct " + DB_Contract.InstantaneousHeartRateEntry.NOTE_COLUMN +  " FROM " + DB_Contract.InstantaneousHeartRateEntry.TABLE_NAME + ";");
+
+        if (cursor != null && cursor.moveToFirst()) {
+            do {
+                String recordName = new String(cursor.getString(0));
+
+                if (recordName.equals(name)) {
+                    exists = true;
+                    break;
+                }
+            }while (cursor.moveToNext());
+            cursor.close();
+        }
+        return exists;
+    }
+
+    protected ArrayList<String> getUniqueRecords() {
+        ArrayList<String> records = new ArrayList<>();
+        Cursor cursor = customQuery("SELECT Distinct " + DB_Contract.InstantaneousHeartRateEntry.NOTE_COLUMN +  " FROM " + DB_Contract.InstantaneousHeartRateEntry.TABLE_NAME + ";");
+
+        if (cursor != null && cursor.moveToFirst()) {
+            do {
+                String recordName = new String(cursor.getString(0));
+                records.add(recordName);
+            } while (cursor.moveToNext());
+            cursor.close();
+        }
+        return records;
+    }
+
+    protected String getLastTimestampFromRecord(String name) {
+        String last = "";
+        Cursor cursor = customQuery("SELECT " + DB_Contract.InstantaneousHeartRateEntry.DATE_COLUMN + " FROM " + DB_Contract.InstantaneousHeartRateEntry.TABLE_NAME + " WHERE " + DB_Contract.InstantaneousHeartRateEntry.NOTE_COLUMN + " = \"" + name + "\";");
+        cursor.moveToLast();
+        last = cursor.getString(0);
+        return last;
+    }
+
+    protected String getFirstTimestampFromRecord(String name) {
+        String first = "";
+        Cursor cursor = customQuery("SELECT " + DB_Contract.InstantaneousHeartRateEntry.DATE_COLUMN +" FROM " + DB_Contract.InstantaneousHeartRateEntry.TABLE_NAME + " WHERE " + DB_Contract.InstantaneousHeartRateEntry.NOTE_COLUMN + " = \"" + name +"\""+ " LIMIT 1" +";");
+        cursor.moveToFirst();
+        first = cursor.getString(0);
+        return first;
     }
 
 
