@@ -39,15 +39,37 @@
         android:title="Max Heart Rate (bpm)" />
 
     <EditTextPreference
+        android:key="max_heart_rate_duration"
+        android:inputType="number"
+        android:defaultValue="15"
+        android:summary="If your Heart Rate exceeds your maximum set value for this duration (secs) then your heart may need a check up and your emergency contacts are alerted."
+        android:title="Max Heart Rate Duration (seconds)" />
+
+    <EditTextPreference
         android:key="min_heart_rate"
         android:inputType="number"
         android:title="Min Heart Rate (bpm)" />
 
-    <SwitchPreference
-        android:defaultValue="false"
-        android:key="risk_switch"
-        android:summary="Enable if you are at high risk for heart condition"
-        android:title="High risk" />
+    <EditTextPreference
+        android:key="min_heart_rate_duration"
+        android:inputType="number"
+        android:defaultValue="15"
+        android:summary="If your Heart Rate exceeds your minimum set value for this duration (secs) then your heart may need a check up and your emergency contacts are alerted."
+        android:title="Min Heart Rate Duration (seconds)" />
+
+    <EditTextPreference
+        android:key="max_rr_interval"
+        android:inputType="number"
+        android:defaultValue="4000"
+        android:summary="This is the maximum time between each heart beat used as a reference for detecting problems with your heart beat variability and alerting your emergency contacts."
+        android:title="Max RR interval (milliseconds)" />
+
+    <EditTextPreference
+        android:key="min_rr_interval"
+        android:inputType="number"
+        android:summary="This is the minimum time between each heart beat used as a reference for detecting problems with your heart beat variability and alerting your emergency contacts."
+        android:defaultValue="200"
+        android:title="Min RR interval (milliseconds)" />
 
 
 </PreferenceScreen>

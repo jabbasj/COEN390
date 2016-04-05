@@ -36,7 +36,7 @@
     <Button
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Reset"
+        android:text="Fit Screen"
         android:minHeight="0dp"
         android:minWidth="0dp"
         android:gravity="center"
@@ -45,5 +45,19 @@
         android:id="@+id/reset_scale"
         android:layout_below="@+id/chart"
         android:layout_alignEnd="@+id/chart" />
+
+    <TextView
+        android:layout_width="200dp"
+        android:layout_height="95dp"
+        android:textSize="16sp"
+        android:background="@drawable/live_pulse_background"
+        android:text=" Max:\n Average:\n Min:"
+        android:gravity="left"
+        android:textColor="#ffffff"
+        android:id="@+id/stats"
+        android:textAlignment="gravity"
+        android:layout_below="@+id/chart"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentEnd="true" />
 
 </RelativeLayout>

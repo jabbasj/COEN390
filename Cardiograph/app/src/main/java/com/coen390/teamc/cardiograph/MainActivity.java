@@ -32,6 +32,8 @@ import com.nhaarman.supertooltips.ToolTip;
 import com.nhaarman.supertooltips.ToolTipRelativeLayout;
 import com.nhaarman.supertooltips.ToolTipView;
 import java.util.ArrayList;
+import java.util.Timer;
+import java.util.TimerTask;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -42,6 +44,7 @@ public class MainActivity extends AppCompatActivity {
     private String NO_DEVICES_FOUND = "NO DEVICES FOUND!";
     private String ZEPHYR_NOT_CONNECTED = "ZEPHYR NOT CONNECTED!";
     private String NO_EMERGENCY_CONTACTS = "NO EMERGENCY CONTACTS!";
+    private String SETTINGS_MISSING = "SETTINGS MISSING!";
     protected ArrayList<String> PROBLEMS_DETECTED;
 
 
@@ -156,6 +159,10 @@ public class MainActivity extends AppCompatActivity {
             PROBLEMS_DETECTED.add(NO_EMERGENCY_CONTACTS);
         }
 
+        if (!checkSettings()) {
+            PROBLEMS_DETECTED.add(SETTINGS_MISSING);
+        }
+
     }
 
     private class CustomClickLister implements View.OnClickListener {
@@ -182,6 +189,7 @@ public class MainActivity extends AppCompatActivity {
 
                 case R.id.start_record:
                     if (mCurrentRecord != "") {
+
                         mBluetoothConnection.recordMeasurement = true;
                         Drawable left = getResources().getDrawable(android.R.drawable.presence_online);
                         start_recording_btn.setCompoundDrawablesWithIntrinsicBounds(left, null, null, null);
@@ -213,6 +221,10 @@ public class MainActivity extends AppCompatActivity {
                     } else if (NO_EMERGENCY_CONTACTS.equals(PROBLEMS_DETECTED.get(0))){
                         Intent contacts_page = new Intent(MainActivity.this, ContactsPage.class);
                         startActivity(contacts_page);
+                    } else if (SETTINGS_MISSING.equals(PROBLEMS_DETECTED.get(0))) {
+                        checkSettings();
+                        Intent settings_page = new Intent(MainActivity.this, SettingsActivity.class);
+                        startActivity(settings_page);
                     }
                     break;
             }
@@ -586,6 +598,36 @@ public class MainActivity extends AppCompatActivity {
     protected Boolean getBooleanPreference(String pref_string, boolean default_val) {
         SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(this);
         return sp.getBoolean(pref_string, default_val);
+    }
+
+    protected boolean checkSettings() {
+        SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(this);
+        String setting_string = "";
+        try {
+            setting_string = "Battery Level";
+            Integer.parseInt(sp.getString("battery_level", ""));
+
+            if (getBooleanPreference("alert_contacts_switch", false)) {
+                setting_string = "Max RR Interval";
+                Integer.parseInt(sp.getString("max_rr_interval", ""));
+                setting_string = "Min RR Interval";
+                Integer.parseInt(sp.getString("min_rr_interval", ""));
+                setting_string = "Min Heart Rate";
+                Integer.parseInt(sp.getString("min_heart_rate", ""));
+                setting_string = "Min Heart Rate Duration";
+                Integer.parseInt(sp.getString("min_heart_rate_duration", ""));
+                setting_string = "Max Heart Rate";
+                Integer.parseInt(sp.getString("max_heart_rate", ""));
+                setting_string = "Max Heart Rate Duration";
+                Integer.parseInt(sp.getString("max_heart_rate_duration", ""));
+            }
+
+
+        }catch (Exception e) {
+            showToast(setting_string + " setting missing!");
+            return false;
+        }
+        return true;
     }
 
 }

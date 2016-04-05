@@ -115,6 +115,7 @@ public class BluetoothConnection {
     }
 
     protected void connectListener() {
+
         previous_hr_num = 0;
         _bt = new BTClient(mBluetoothAdapter, mZephyr.getAddress());
         _NConnListener = new NewConnectedListener(Newhandler, Newhandler);
@@ -174,6 +175,11 @@ public class BluetoothConnection {
 
                         /** CHECK IF BATTERY LOW **/
                         String min_battery_level = mMainActivity.getStringPreference("battery_level", "15");
+                        try {
+                            Integer.parseInt(min_battery_level);
+                        } catch (Exception e) {
+                            min_battery_level = "15";
+                        }
                         if (Integer.parseInt(BatteryPercent) < Integer.parseInt(min_battery_level) && Integer.parseInt(BatteryPercent) != 0) {
 
                             mMainActivity.showBatteryLowDialog(); //show battery dialog and notification
@@ -218,8 +224,7 @@ public class BluetoothConnection {
                     }
                     //Log.d("new heart beats", String.valueOf(new_HR_beats));
 
-                    if ( new_HR_beats != 0) {
-
+                    if ( new_HR_beats != 0 && new_HR_beats < 14) {
                         if (recordMeasurement) {
                             SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
                             String currentTimeStamp = dateFormat.format(new Date());
@@ -231,10 +236,12 @@ public class BluetoothConnection {
                                     RR = 65536 + RR;
                                 }
                                 Log.d("Latest R-R interval", "         " + String.valueOf(RR));
-                                mMainActivity.myDBHelper.insertRRInterval(currentTimeStamp, String.valueOf(RR), mMainActivity.mCurrentRecord);
+                                if (RR > 0) {
+                                    mMainActivity.myDBHelper.insertRRInterval(currentTimeStamp, String.valueOf(RR), mMainActivity.mCurrentRecord);
 
-                                if (DataGraph.current_graph.equals("ECG") && DataGraph.mChart.isShown()) {
-                                    DataGraph.updateLiveECG(currentTimeStamp, String.valueOf(RR), mMainActivity.mCurrentRecord);
+                                    if (DataGraph.current_graph.equals("ECG") && DataGraph.mChart.isShown()) {
+                                        DataGraph.updateLiveECG(currentTimeStamp, String.valueOf(RR), mMainActivity.mCurrentRecord);
+                                    }
                                 }
                             }
                         }
