@@ -45,6 +45,27 @@ public class BluetoothConnection {
     private final int HEART_BEAT_NUMBER = 0x104;
 
     protected int previous_hr_num = 0;
+    protected ArrayList<DataGraph.heartRate> problem_heartRates = new ArrayList<>();
+    protected int time_max_hr = 0;
+    protected int time_min_hr = 0;
+
+    protected ArrayList<DataGraph.rrInterval> problem_HRVScores = new ArrayList<>();
+    protected int time_max_hrv = 0;
+
+    protected ArrayList<DataGraph.rrInterval> last_two_RR_intervals = new ArrayList<>();
+    protected double old_RMSSD = 0;
+    protected int total_RR_intervals = 0;
+
+    protected int MAX_HR_LIMIT ;
+    protected int MAX_HR_DURATION;
+
+    protected int MIN_HR_LIMIT;
+    protected int MIN_HR_DURATION;
+
+    protected int MAX_HRV_SCORE;
+    protected int HRV_SCORE_DURATION;
+
+    protected String danger_cause = "";
 
     protected BluetoothConnection(Context ctx) {
         mMainPageContext = ctx;
@@ -117,6 +138,19 @@ public class BluetoothConnection {
     protected void connectListener() {
 
         previous_hr_num = 0;
+        time_max_hr = 0;
+        time_min_hr = 0;
+        problem_heartRates = new ArrayList<>();
+        last_two_RR_intervals = new ArrayList<>();
+        old_RMSSD = 0;
+        total_RR_intervals = 0;
+
+        String ns = Context.NOTIFICATION_SERVICE;
+        NotificationManager nMgr = (NotificationManager) mMainActivity.getSystemService(ns);
+        nMgr.cancel(666);
+        nMgr.cancel(777);
+        nMgr.cancel(888);
+
         _bt = new BTClient(mBluetoothAdapter, mZephyr.getAddress());
         _NConnListener = new NewConnectedListener(Newhandler, Newhandler);
         _bt.addConnectedEventListener(_NConnListener);
@@ -153,16 +187,64 @@ public class BluetoothConnection {
                                 /** UPDATE LIVE GRAPH **/
                                 DataGraph.updateLiveHeartRate(currentTimeStamp, HeartRatetext, mMainActivity.mCurrentRecord);
                             }
+
+                            /** Check if MAX/MIN Heart Rate reached **/
+                            if (checkSettings()) {
+                                int HR = Integer.parseInt(HeartRatetext);
+
+                                    if (HR >= MAX_HR_LIMIT) {
+                                        problem_heartRates.add(new DataGraph.heartRate(currentTimeStamp, HR, mMainActivity.mCurrentRecord));
+                                        time_max_hr += 1;
+
+                                        if (time_max_hr >= MAX_HR_DURATION) {
+                                            /* problem */
+                                            //mMainActivity.showToast("MAX HR REACHED FOR TOO LONG!");
+                                            mMainActivity.showAlertContactsDialog("Pulse over: " + String.valueOf(HR) + " bpm for " + String.valueOf(MAX_HR_DURATION) + " secs");
+                                            time_max_hr = 0;
+                                            problem_heartRates = new ArrayList<>();
+                                            danger_cause = "max_hr";
+                                        }
+
+                                    } else {
+                                        time_max_hr = 0;
+                                        problem_heartRates = new ArrayList<>();
+
+                                        if (mMainActivity.alertContactsDialog.isShowing() && danger_cause.equals("max_hr")) {
+                                            mMainActivity.alertContactsDialogShown = false;
+                                            mMainActivity.alertContactsDialog.dismiss();
+                                            mMainActivity.alertContactsCounter.cancel();
+                                            nMgr.cancel(888);
+                                        }
+                                    }
+
+
+                                    if (HR <= MIN_HR_LIMIT) {
+                                        problem_heartRates.add(new DataGraph.heartRate(currentTimeStamp, HR, mMainActivity.mCurrentRecord));
+                                        time_min_hr += 1;
+
+                                        if (time_min_hr >= MIN_HR_DURATION) {
+                                            /* problem */
+                                            //mMainActivity.showToast("MIN HR REACHED FOR TOO LONG!");
+                                            mMainActivity.showAlertContactsDialog("Pulse under: " + String.valueOf(HR) + " bpm for " + String.valueOf(MIN_HR_DURATION) + " secs");
+                                            time_max_hr = 0;
+                                            problem_heartRates = new ArrayList<>();
+                                            danger_cause = "min_hr";
+                                        }
+
+                                    } else {
+                                        time_min_hr = 0;
+                                        problem_heartRates = new ArrayList<>();
+
+                                        if (mMainActivity.alertContactsDialog.isShowing() && danger_cause.equals("min_hr")) {
+                                            mMainActivity.alertContactsDialogShown = false;
+                                            mMainActivity.alertContactsDialog.dismiss();
+                                            mMainActivity.alertContactsCounter.cancel();
+                                            nMgr.cancel(888);
+                                        }
+                                    }
+                            }
                         }
 
-                        /** CHECK IF BAD CONNECTION
-                        if (Integer.parseInt(HeartRatetext) == 0){
-                            mMainActivity.showBadConnectionDialog(); //not sure about this one...
-                        } else {
-                            mMainActivity.badConnectionDialogShown = false;
-                            nMgr.cancel(888);
-                        }
-                         **/
                     }
                     break;
 
@@ -237,15 +319,59 @@ public class BluetoothConnection {
                                 }
                                 Log.d("Latest R-R interval", "         " + String.valueOf(RR));
                                 if (RR > 0) {
-                                    mMainActivity.myDBHelper.insertRRInterval(currentTimeStamp, String.valueOf(RR), mMainActivity.mCurrentRecord);
+                                    double RMSSD = 0;
+                                    last_two_RR_intervals.add(new DataGraph.rrInterval(currentTimeStamp, RR, mMainActivity.mCurrentRecord, 0));
 
-                                    if (DataGraph.current_graph.equals("ECG") && DataGraph.mChart.isShown()) {
-                                        DataGraph.updateLiveECG(currentTimeStamp, String.valueOf(RR), mMainActivity.mCurrentRecord);
+                                    RMSSD = computeRMSSD();
+                                    Log.d("RMSSD", String.valueOf(RMSSD));
+                                    total_RR_intervals+=1;
+
+                                    if (RMSSD > 0) {
+                                        mMainActivity.myDBHelper.insertRRInterval(currentTimeStamp, String.valueOf(RR), mMainActivity.mCurrentRecord, String.valueOf(RMSSD));
+
+                                        if (DataGraph.current_graph.equals("ECG") && DataGraph.mChart.isShown()) {
+                                            DataGraph.updateLiveECG(currentTimeStamp, String.valueOf(RR), mMainActivity.mCurrentRecord, String.valueOf(RMSSD));
+                                        }
+
+                                        if (DataGraph.current_graph.equals("HRV") && DataGraph.mChart.isShown()) {
+                                            DataGraph.updateLiveHRV(currentTimeStamp, String.valueOf(RR), mMainActivity.mCurrentRecord, String.valueOf(RMSSD));
+                                        }
+
+                                        /** Check if MAX HRV Score reached **/
+                                        if (checkSettings()) {
+                                            if (RMSSD >= MAX_HRV_SCORE) {
+                                                problem_HRVScores.add(new DataGraph.rrInterval(currentTimeStamp, RR, mMainActivity.mCurrentRecord, RMSSD));
+                                                time_max_hrv += 1;
+
+                                                if (time_max_hrv >= HRV_SCORE_DURATION) {
+                                                    /* problem */
+                                                    //mMainActivity.showToast("MAX HRV REACHED FOR TOO LONG!");
+
+                                                    mMainActivity.showAlertContactsDialog("HRV over: " + String.valueOf((float)RMSSD) + " ms for " + String.valueOf(HRV_SCORE_DURATION) + " beats");
+                                                    //initiate countdown for alerting contacts
+
+                                                    time_max_hrv = 0;
+                                                    problem_HRVScores = new ArrayList<>();
+
+                                                    danger_cause = "max_hrv";
+                                                }
+
+                                            } else {
+                                                time_max_hrv = 0;
+                                                problem_HRVScores = new ArrayList<>();
+
+                                                if (mMainActivity.alertContactsDialog.isShowing() && danger_cause.equals("max_hrv")) {
+                                                    mMainActivity.alertContactsDialogShown = false;
+                                                    mMainActivity.alertContactsDialog.dismiss();
+                                                    mMainActivity.alertContactsCounter.cancel();
+                                                    nMgr.cancel(888);
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
-
                     }
                     previous_hr_num = HeartBeatNumber;
                     break;
@@ -253,6 +379,47 @@ public class BluetoothConnection {
         }
 
     };
+
+    double computeRMSSD() {
+        double RMSSD = 0;
+        double SUM_SSD = 0;
+        if ( last_two_RR_intervals.size() >= 2 ) {
+
+            if (old_RMSSD == 0) {
+                RMSSD = MAX_HRV_SCORE / 2;
+                /*
+                for (int i = 0; i < last_two_RR_intervals.size() - 1; i++) {
+                    double SD = last_two_RR_intervals.get(i + 1).mRRInterval - last_two_RR_intervals.get(i).mRRInterval;
+                    double SSD = Math.pow(SD, 2);
+                    SUM_SSD += SSD;
+                }
+                RMSSD = Math.sqrt(SUM_SSD / (last_two_RR_intervals.size() - 1));*/
+
+            } else {
+
+                int i = last_two_RR_intervals.size() - 1;
+                int SD = last_two_RR_intervals.get(i).mRRInterval - last_two_RR_intervals.get(i - 1).mRRInterval;
+
+                if (Math.abs(SD) < 300) {
+                    RMSSD = Math.sqrt((Math.pow(old_RMSSD, 2) * (total_RR_intervals - 1) + Math.pow(SD, 2)) / (total_RR_intervals));
+                }
+                last_two_RR_intervals.remove(i);
+                last_two_RR_intervals.remove(i - 1);
+
+                /** Make it rise slower **/
+                if (RMSSD > old_RMSSD) {
+                    RMSSD = old_RMSSD + ((RMSSD - old_RMSSD) / 2);
+                }
+            }
+        }
+
+        if (RMSSD == 0) {
+            return old_RMSSD;
+        }
+
+        old_RMSSD = RMSSD;
+        return RMSSD;
+    }
 
     private void showSaveDeviceDialog(final BluetoothDevice device){
         new AlertDialog.Builder(mMainPageContext)
@@ -384,6 +551,54 @@ public class BluetoothConnection {
         }
 
         Drawable right = mMainActivity.getResources().getDrawable(id);
-        mMainActivity.sensor_battery_tv.setCompoundDrawablesWithIntrinsicBounds(null,null,right,null);
+        mMainActivity.sensor_battery_tv.setCompoundDrawablesWithIntrinsicBounds(null, null, right, null);
+    }
+
+    protected Boolean getBooleanPreference(String pref_string, boolean default_val) {
+        SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(mMainPageContext);
+        return sp.getBoolean(pref_string, default_val);
+    }
+
+    protected void reset_problem_detection() {
+        problem_heartRates = new ArrayList<DataGraph.heartRate>();
+        problem_HRVScores = new ArrayList<DataGraph.rrInterval>();
+        time_max_hr = 0;
+        time_min_hr = 0;
+        time_max_hrv = 0;
+        total_RR_intervals = 0;
+        old_RMSSD = 0;
+    }
+
+    protected boolean checkSettings() {
+        SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(mMainPageContext);
+        String setting_string = "";
+        try {
+
+            if (getBooleanPreference("alert_contacts_switch", true)) {
+                setting_string = "Max HRV Score";
+                MAX_HRV_SCORE = Integer.parseInt(sp.getString("max_hrv_score", ""));
+
+                setting_string = "HRV Score Duration";
+                HRV_SCORE_DURATION = Integer.parseInt(sp.getString("hrv_score_duration", ""));
+
+                setting_string = "Min Heart Rate";
+                MIN_HR_LIMIT = Integer.parseInt(sp.getString("min_heart_rate", ""));
+
+                setting_string = "Min Heart Rate Duration";
+                MIN_HR_DURATION = Integer.parseInt(sp.getString("min_heart_rate_duration", ""));
+
+                setting_string = "Max Heart Rate";
+                MAX_HR_LIMIT = Integer.parseInt(sp.getString("max_heart_rate", ""));
+
+                setting_string = "Max Heart Rate Duration";
+                MAX_HR_DURATION = Integer.parseInt(sp.getString("max_heart_rate_duration", ""));
+            }
+
+        }catch (Exception e) {
+            mMainActivity.showToast(setting_string + " setting needed for alerting contacts!");
+            mMainActivity.stop_measure_btn.callOnClick();
+            return false;
+        }
+        return true;
     }
 }

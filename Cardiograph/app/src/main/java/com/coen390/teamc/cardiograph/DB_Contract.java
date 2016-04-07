@@ -13,12 +13,6 @@ public class DB_Contract {
 
         protected static final String PHONE_COLUMN = "Phone";
         protected static final String PHONE_COLUMN_TYPE = "TEXT";
-
-        protected static final String PRIORITY_COLUMN = "Priority";
-        protected static final String PRIORITY_COLUMN_TYPE = "TEXT";
-
-        protected static final String ACTION_COLUMN = "Action";
-        protected static final String ACTION_COLUMN_TYPE = "TEXT";
     }
 
 
@@ -59,5 +53,8 @@ public class DB_Contract {
 
         protected static final String NOTE_COLUMN = "Note";
         protected static final String NOTE_COLUMN_TYPE = "TEXT";
+
+        protected static final String RUNNING_RMSSD = "RMSSD";
+        protected static final String RUNNING_RMSSD_TYPE = "REAL";
     }
 }

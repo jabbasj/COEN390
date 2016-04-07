@@ -193,9 +193,6 @@ public class SettingsActivity extends AppCompatPreferenceActivity {
             // updated to reflect the new value, per the Android Design
             // guidelines.
             bindPreferenceSummaryToValue(findPreference("user_name"));
-            bindPreferenceSummaryToValue(findPreference("gender_list"));
-            bindPreferenceSummaryToValue(findPreference("age"));
-            bindPreferenceSummaryToValue(findPreference("weight"));
             bindPreferenceSummaryToValue(findPreference("max_heart_rate"));
             bindPreferenceSummaryToValue(findPreference("min_heart_rate"));
         }

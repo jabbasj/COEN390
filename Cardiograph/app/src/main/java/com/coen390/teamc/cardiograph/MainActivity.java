@@ -2,6 +2,7 @@ package com.coen390.teamc.cardiograph;
 
 import android.Manifest;
 import android.annotation.TargetApi;
+import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
@@ -9,12 +10,14 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.CountDownTimer;
 import android.os.Vibrator;
 import android.preference.PreferenceManager;
 import android.support.design.widget.FloatingActionButton;
@@ -22,6 +25,9 @@ import android.support.v4.app.NotificationCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.telephony.SmsManager;
+import android.telephony.TelephonyManager;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -32,8 +38,7 @@ import com.nhaarman.supertooltips.ToolTip;
 import com.nhaarman.supertooltips.ToolTipRelativeLayout;
 import com.nhaarman.supertooltips.ToolTipView;
 import java.util.ArrayList;
-import java.util.Timer;
-import java.util.TimerTask;
+
 
 
 public class MainActivity extends AppCompatActivity {
@@ -54,8 +59,9 @@ public class MainActivity extends AppCompatActivity {
     protected boolean batteryDialogShown = false;
     protected AlertDialog batteryLowDialog;
 
-    protected boolean badConnectionDialogShown = false;
-    protected AlertDialog badConnectionDialog;
+    static protected boolean alertContactsDialogShown = false;
+    protected AlertDialog alertContactsDialog;
+    protected CountDownTimer alertContactsCounter;
 
     protected boolean deviceDisconnectedDialogShown = false;
     protected AlertDialog deviceDisconnectedDialog;
@@ -64,6 +70,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView warning_tv;
     protected TextView live_pulse_tv;
     protected TextView sensor_battery_tv;
+    protected TextView counter_tv;
     static protected Button measure_btn;
     static protected  Button stop_measure_btn;
     static protected Button start_recording_btn;
@@ -88,7 +95,7 @@ public class MainActivity extends AppCompatActivity {
         toolbar.setLogo(R.mipmap.ic_launcher);
         setSupportActionBar(toolbar);
 
-        ask_user_permission_for_location();
+        ask_user_permissions();
 
         myDBHelper = new DB_Helper(this);
 
@@ -96,7 +103,7 @@ public class MainActivity extends AppCompatActivity {
         mBluetoothConnection = new BluetoothConnection(this);
 
         initializeLowBatteryDialog();
-        initializeBadConnectionDialog();
+        initializeAlertContactsDialog();
         initializeDeviceDisconnectedDialog();
         setPreferenceChangeListener();
 
@@ -155,11 +162,15 @@ public class MainActivity extends AppCompatActivity {
             PROBLEMS_DETECTED.add(NO_DEVICES_FOUND);
         }
 
-        if (myDBHelper.getAllContacts().getCount() == 0) {
-            PROBLEMS_DETECTED.add(NO_EMERGENCY_CONTACTS);
+        if (getBooleanPreference("alert_contacts_switch", true)) {
+            if (myDBHelper.getAllContacts().getCount() == 0) {
+                PROBLEMS_DETECTED.add(NO_EMERGENCY_CONTACTS);
+            }
         }
 
-        if (!checkSettings()) {
+        String missing_setting = checkSettings();
+
+        if (!missing_setting.equals("")) {
             PROBLEMS_DETECTED.add(SETTINGS_MISSING);
         }
 
@@ -191,6 +202,8 @@ public class MainActivity extends AppCompatActivity {
                     if (mCurrentRecord != "") {
 
                         mBluetoothConnection.recordMeasurement = true;
+                        alertContactsDialogShown = false;
+                        mBluetoothConnection.reset_problem_detection();
                         Drawable left = getResources().getDrawable(android.R.drawable.presence_online);
                         start_recording_btn.setCompoundDrawablesWithIntrinsicBounds(left, null, null, null);
                         showToast("Recording!");
@@ -222,7 +235,7 @@ public class MainActivity extends AppCompatActivity {
                         Intent contacts_page = new Intent(MainActivity.this, ContactsPage.class);
                         startActivity(contacts_page);
                     } else if (SETTINGS_MISSING.equals(PROBLEMS_DETECTED.get(0))) {
-                        checkSettings();
+                        showToast(checkSettings() + " setting missing!");
                         Intent settings_page = new Intent(MainActivity.this, SettingsActivity.class);
                         startActivity(settings_page);
                     }
@@ -373,6 +386,7 @@ public class MainActivity extends AppCompatActivity {
                         onResume();
                     }
                 })
+                .setCancelable(false)
                 .setIcon(android.R.drawable.ic_dialog_alert).create();
     }
 
@@ -417,30 +431,45 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void initializeBadConnectionDialog() {
-        badConnectionDialog = new AlertDialog.Builder(this)
-                .setTitle("Bad Connection!")
-                .setMessage("Add water to connectors and restart!")
+    private void initializeAlertContactsDialog() {
+        counter_tv = new TextView (this);
+
+        alertContactsDialog = new AlertDialog.Builder(this)
+                .setView(counter_tv)
+                .setTitle("Danger Detected!")
+                .setMessage("Do you want to send an automated text message warning to your emergency contacts?\n\n" +
+                        "If danger persists for 2 minutes and you do not cancel, the messages will be sent.\n")
                 .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int which) {
-                        badConnectionDialogShown = false;
-                        stop_measure_btn.callOnClick(); //stop
+                        alertContactsDialogShown = false;
+                        mBluetoothConnection.reset_problem_detection();
+                        alertContactsCounter.cancel();
+                        alertContactsCounter.onFinish();
                     }
                 })
+                .setNegativeButton("CANCEL", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        alertContactsCounter.cancel();
+                        showToast("Contacts will no longer be alerted!");
+                    }
+                })
+                .setCancelable(false)
                 .setIcon(android.R.drawable.ic_dialog_alert).create();
     }
 
-    protected void showBadConnectionDialog() {
-        if (!badConnectionDialogShown) {
+    protected void showAlertContactsDialog(final String danger_message) {
+        if (!alertContactsDialogShown) {
 
             boolean notifications_enabled = getBooleanPreference("notifications_enabled", true);
-            if (notifications_enabled) {
+            boolean alert_contacts_enabled = getBooleanPreference("alert_contacts_switch", false);
 
+            if (notifications_enabled) {
                 NotificationCompat.Builder mBuilder =
                         new NotificationCompat.Builder(this)
                                 .setSmallIcon(android.R.drawable.ic_dialog_alert)
                                 .setContentTitle("Cardiograph")
-                                .setContentText("Bad connection!!");
+                                .setContentText(danger_message);
 
                 Intent resultIntent = new Intent(this, MainActivity.class);
                 resultIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -465,8 +494,24 @@ public class MainActivity extends AppCompatActivity {
                     vibratePhone();
                 }
             }
-            badConnectionDialog.show();
-            badConnectionDialogShown = true;
+
+            if (alert_contacts_enabled) {
+                alertContactsDialog.show();
+                alertContactsCounter = new CountDownTimer(120000, 1000) {
+                    @Override
+                    public void onTick(long millisUntilFinished) {
+                        counter_tv.setText("Time remaining: " + (millisUntilFinished / 1000) + " seconds");
+                    }
+
+                    @Override
+                    public void onFinish() {
+                        alertContacts(danger_message);
+                    }
+                };
+                alertContactsCounter.start();
+            }
+
+            alertContactsDialogShown = true;
         }
     }
 
@@ -487,6 +532,7 @@ public class MainActivity extends AppCompatActivity {
                         onResume();
                     }
                 })
+                .setCancelable(false)
                 .setIcon(android.R.drawable.ic_dialog_alert).create();
     }
 
@@ -548,7 +594,7 @@ public class MainActivity extends AppCompatActivity {
     /******              LOCATION               ******/
 
     @TargetApi(23)
-    private void ask_user_permission_for_location() {
+    private void ask_user_permissions() {
 
         int hasCoarseLocationPermission = checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION);
 
@@ -557,18 +603,26 @@ public class MainActivity extends AppCompatActivity {
             requestPermissions(new String[]{Manifest.permission.ACCESS_COARSE_LOCATION}, REQUEST_CODE_ASK_PERMISSIONS);
             return;
         }
+
+        int hasSendSMSPermission = checkSelfPermission(Manifest.permission.SEND_SMS);
+
+        if (hasSendSMSPermission != PackageManager.PERMISSION_GRANTED) {
+
+            requestPermissions(new String[]{Manifest.permission.SEND_SMS}, REQUEST_CODE_ASK_PERMISSIONS);
+            return;
+        }
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults){
         switch(requestCode) {
             case REQUEST_CODE_ASK_PERMISSIONS:
-                if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    //granted
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    ask_user_permissions();
                 } else {
                     //location permission denied
-                    showToast("Zephyr not discoverable without location permission.");
-                    ask_user_permission_for_location();
+                    showToast("App cannot work without permissions!");
+                    ask_user_permissions();
                 }
         }
     }
@@ -585,6 +639,10 @@ public class MainActivity extends AppCompatActivity {
                 if(key.equals("max_heart_rate") || key.equals("min_heart_rate")) {
                     DataGraph.removeLimitLines();
                 }
+
+                if (key.equals("alert_contacts_switch")) {
+                    alertContactsDialogShown = false;
+                }
             }
         };
         prefs.registerOnSharedPreferenceChangeListener(prefListener);
@@ -600,18 +658,18 @@ public class MainActivity extends AppCompatActivity {
         return sp.getBoolean(pref_string, default_val);
     }
 
-    protected boolean checkSettings() {
+    protected String checkSettings() {
         SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(this);
         String setting_string = "";
         try {
             setting_string = "Battery Level";
             Integer.parseInt(sp.getString("battery_level", ""));
 
-            if (getBooleanPreference("alert_contacts_switch", false)) {
-                setting_string = "Max RR Interval";
-                Integer.parseInt(sp.getString("max_rr_interval", ""));
-                setting_string = "Min RR Interval";
-                Integer.parseInt(sp.getString("min_rr_interval", ""));
+            if (getBooleanPreference("alert_contacts_switch", true)) {
+                setting_string = "Max HRV Score";
+                Integer.parseInt(sp.getString("max_hrv_score", ""));
+                setting_string = "HRV Score Duration";
+                Integer.parseInt(sp.getString("hrv_score_duration", ""));
                 setting_string = "Min Heart Rate";
                 Integer.parseInt(sp.getString("min_heart_rate", ""));
                 setting_string = "Min Heart Rate Duration";
@@ -622,12 +680,35 @@ public class MainActivity extends AppCompatActivity {
                 Integer.parseInt(sp.getString("max_heart_rate_duration", ""));
             }
 
-
         }catch (Exception e) {
-            showToast(setting_string + " setting missing!");
-            return false;
+            return setting_string;
         }
-        return true;
+        return "";
+    }
+
+    protected void alertContacts(String danger_message) {
+        SmsManager smsManager = SmsManager.getDefault();
+        PendingIntent sentPI;
+        Cursor cursor = myDBHelper.getAllContacts();
+
+        if (cursor != null && cursor.moveToFirst()) {
+            do {
+                String contactName = cursor.getString(0);
+                String contactPhone = cursor.getString(1);
+                sentPI = PendingIntent.getBroadcast(this, 0,new Intent("android.telephony.SmsManager.STATUS_ON_ICC_SENT"), 0);
+                String sms_message = "This is an automated msg from " + getStringPreference("user_name", "UNDEFINED")
+                        + "'s Cardiograph. " + danger_message + ", please contact them ASAP.";
+                smsManager.sendTextMessage(contactPhone, null, sms_message, sentPI, null);
+            } while (cursor.moveToNext());
+            cursor.close();
+            showToast("Messages sent!");
+            mBluetoothConnection.reset_problem_detection();
+
+            if (cursor.getCount() == 0) {
+                showToast("No contacts found!");
+                onResume();
+            }
+        }
     }
 
 }

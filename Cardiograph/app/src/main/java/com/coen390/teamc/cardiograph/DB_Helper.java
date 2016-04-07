@@ -10,14 +10,12 @@ import java.util.ArrayList;
 
 public class DB_Helper extends SQLiteOpenHelper {
     // If you change the database schema, you must increment the database version.
-    private static final int DATABASE_VERSION = 2;
+    private static final int DATABASE_VERSION = 4;
     static final String DATABASE_NAME = "cardiograph.db";
 
     private static final String CONTACTS_TABLE_CREATE = "CREATE TABLE " + DB_Contract.ContactsEntry.TABLE_NAME +
             " (" + DB_Contract.ContactsEntry.NAME_COLUMN + " " + DB_Contract.ContactsEntry.NAME_COLUMN_TYPE + "," +
-            DB_Contract.ContactsEntry.PHONE_COLUMN + " " + DB_Contract.ContactsEntry.PHONE_COLUMN_TYPE + "," +
-            DB_Contract.ContactsEntry.PRIORITY_COLUMN + " " + DB_Contract.ContactsEntry.PRIORITY_COLUMN_TYPE + "," +
-            DB_Contract.ContactsEntry.ACTION_COLUMN + " " + DB_Contract.ContactsEntry.ACTION_COLUMN_TYPE
+            DB_Contract.ContactsEntry.PHONE_COLUMN + " " + DB_Contract.ContactsEntry.PHONE_COLUMN_TYPE
             + ");";
 
     private static final String INSTANTANEOUS_HEART_RATE_TABLE_CREATE = "CREATE TABLE " + DB_Contract.InstantaneousHeartRateEntry.TABLE_NAME +
@@ -35,7 +33,8 @@ public class DB_Helper extends SQLiteOpenHelper {
     private static final String RR_INTERVALS_TABLE_CREATE = "CREATE TABLE " + DB_Contract.RRIntervals.TABLE_NAME +
             " (" + DB_Contract.RRIntervals.DATE_COLUMN + " " + DB_Contract.RRIntervals.DATE_COLUMN_TYPE + "," +
             DB_Contract.RRIntervals.RR_COLUMN + " " + DB_Contract.RRIntervals.RR_COLUMN_TYPE + "," +
-            DB_Contract.RRIntervals.NOTE_COLUMN + " " + DB_Contract.RRIntervals.NOTE_COLUMN_TYPE
+            DB_Contract.RRIntervals.NOTE_COLUMN + " " + DB_Contract.RRIntervals.NOTE_COLUMN_TYPE + "," +
+            DB_Contract.RRIntervals.RUNNING_RMSSD + " " + DB_Contract.RRIntervals.RUNNING_RMSSD_TYPE
             + ");";
 
     private static final String CONTACTS_TABLE_DROP = "DROP TABLE IF EXISTS " + DB_Contract.ContactsEntry.TABLE_NAME + ";";
@@ -70,9 +69,8 @@ public class DB_Helper extends SQLiteOpenHelper {
 
 
     /********************* Contacts *******************************/
-    protected void insertContact(String name, String phone, String priority, String action) {
-        getReadableDatabase().execSQL("INSERT INTO " + DB_Contract.ContactsEntry.TABLE_NAME + " VALUES('" + name + "','" +
-                phone + "','" + priority + "','" + action + "');");
+    protected void insertContact(String name, String phone) {
+        getReadableDatabase().execSQL("INSERT INTO " + DB_Contract.ContactsEntry.TABLE_NAME + " VALUES('" + name + "','" + phone +"');");
     }
 
     protected Cursor getAllContacts() {
@@ -103,9 +101,9 @@ public class DB_Helper extends SQLiteOpenHelper {
 
     /********************* RR Intervals *******************************/
 
-    protected void insertRRInterval(String timeStamp, String RR_interval, String note) {
+    protected void insertRRInterval(String timeStamp, String RR_interval, String note, String RMSSD) {
         getReadableDatabase().execSQL("INSERT INTO " + DB_Contract.RRIntervals.TABLE_NAME + " VALUES('" + timeStamp + "','" +
-                RR_interval + "','" + note + "');");
+                RR_interval + "','" + note + "','" + RMSSD  + "');");
     }
 
     protected Cursor getAllRRIntervals(String record_name) {
@@ -127,7 +125,7 @@ public class DB_Helper extends SQLiteOpenHelper {
 
         if (cursor != null && cursor.moveToFirst()) {
             do {
-                String recordName = new String(cursor.getString(0));
+                String recordName = cursor.getString(0);
 
                 if (recordName.equals(name)) {
                     exists = true;
@@ -145,7 +143,7 @@ public class DB_Helper extends SQLiteOpenHelper {
 
         if (cursor != null && cursor.moveToFirst()) {
             do {
-                String recordName = new String(cursor.getString(0));
+                String recordName = cursor.getString(0);
                 records.add(recordName);
             } while (cursor.moveToNext());
             cursor.close();

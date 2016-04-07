@@ -35,14 +35,9 @@ public class ContactsPage extends AppCompatActivity {
     private class contact {
         String mName;
         String mPhone;
-        String mPriority;
-        String mAction;
-
-        contact (String name, String phone, String priority, String action) {
+        contact (String name, String phone) {
             mName = name;
             mPhone = phone;
-            mPriority = priority;
-            mAction = action;
         }
     }
 
@@ -93,12 +88,8 @@ public class ContactsPage extends AppCompatActivity {
                         String name = tv.getText().toString();
                         tv = (EditText) inflator.findViewById(R.id.phone_number);
                         String phone = tv.getText().toString();
-                        Spinner spn = (Spinner) inflator.findViewById(R.id.priority_spinner);
-                        String priority = spn.getSelectedItem().toString();
-                        spn = (Spinner) inflator.findViewById(R.id.action_spinner);
-                        String action = spn.getSelectedItem().toString();
 
-                        myDBHelper.insertContact(name, phone, priority, action);
+                        myDBHelper.insertContact(name, phone);
                         listAllContacts();
                         showHoldToEditTooltip();
                     }
@@ -125,13 +116,9 @@ public class ContactsPage extends AppCompatActivity {
                         String name = tv.getText().toString();
                         tv = (EditText) inflator.findViewById(R.id.phone_number);
                         String phone = tv.getText().toString();
-                        Spinner spn = (Spinner) inflator.findViewById(R.id.priority_spinner);
-                        String priority = spn.getSelectedItem().toString();
-                        spn = (Spinner) inflator.findViewById(R.id.action_spinner);
-                        String action = spn.getSelectedItem().toString();
 
                         myDBHelper.removeContactByPhone(phone_to_delete);
-                        myDBHelper.insertContact(name, phone, priority, action);
+                        myDBHelper.insertContact(name, phone);
                         listAllContacts();
                     }
                 })
@@ -148,20 +135,6 @@ public class ContactsPage extends AppCompatActivity {
 
         EditText phone = (EditText) mEditDialog.findViewById(R.id.phone_number);
         phone.setText(edit_this.mPhone);
-
-        Spinner prio_spn = (Spinner) mEditDialog.findViewById(R.id.priority_spinner);
-        prio_spn.setSelection(Integer.parseInt(edit_this.mPriority) - 1);
-
-        Spinner action_spn = (Spinner) mEditDialog.findViewById(R.id.action_spinner);
-        int action_index = 0;
-        if (edit_this.mAction.equals("Text")) {
-            action_index = 0;
-        } else if (edit_this.mAction.equals("Call")) {
-            action_index = 1;
-        } else if (edit_this.mAction.equals("Both")) {
-            action_index = 2;
-        }
-        action_spn.setSelection(action_index);
     }
 
 
@@ -223,15 +196,13 @@ public class ContactsPage extends AppCompatActivity {
             do {
                 String contactName = cursor.getString(0);
                 String contactPhone = cursor.getString(1);
-                String contactPriority = cursor.getString(2);
-                String contactAction = cursor.getString(3);
-                mContacts.add(contactName + " (" + contactPhone + ")" + " - " + contactAction + " - " + contactPriority);
-                true_Contacts.add(new contact(contactName, contactPhone, contactPriority, contactAction));
+                mContacts.add(contactName + " (" + contactPhone + ")");
+                true_Contacts.add(new contact(contactName, contactPhone));
             }while (cursor.moveToNext());
             cursor.close();
         }
 
-        mContactsAdapter = new ArrayAdapter<String>
+        mContactsAdapter = new ArrayAdapter<>
                 (this, R.layout.list_item_contact,R.id.list_item_contact_textview, mContacts);
 
         ListView listView = (ListView) findViewById(R.id.listview_contacts);

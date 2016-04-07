@@ -14,24 +14,6 @@
 
     <!-- NOTE: Hide buttons to simplify the UI. Users can touch outside the dialog to
      dismiss it. -->
-    <!-- NOTE: ListPreference's summary should be set to its value by the activity code. -->
-    <ListPreference
-        android:entries="@array/gender_list_titles"
-        android:entryValues="@array/gender_list_values"
-        android:key="gender_list"
-        android:negativeButtonText="@null"
-        android:positiveButtonText="@null"
-        android:title="Gender" />
-
-    <EditTextPreference
-        android:key="age"
-        android:inputType="number"
-        android:title="Age" />
-
-    <EditTextPreference
-        android:key="weight"
-        android:inputType="number"
-        android:title="Weight (kg)" />
 
     <EditTextPreference
         android:key="max_heart_rate"
@@ -41,7 +23,7 @@
     <EditTextPreference
         android:key="max_heart_rate_duration"
         android:inputType="number"
-        android:defaultValue="15"
+        android:defaultValue="60"
         android:summary="If your Heart Rate exceeds your maximum set value for this duration (secs) then your heart may need a check up and your emergency contacts are alerted."
         android:title="Max Heart Rate Duration (seconds)" />
 
@@ -53,23 +35,22 @@
     <EditTextPreference
         android:key="min_heart_rate_duration"
         android:inputType="number"
-        android:defaultValue="15"
+        android:defaultValue="60"
         android:summary="If your Heart Rate exceeds your minimum set value for this duration (secs) then your heart may need a check up and your emergency contacts are alerted."
         android:title="Min Heart Rate Duration (seconds)" />
 
     <EditTextPreference
-        android:key="max_rr_interval"
+        android:key="max_hrv_score"
         android:inputType="number"
-        android:defaultValue="4000"
-        android:summary="This is the maximum time between each heart beat used as a reference for detecting problems with your heart beat variability and alerting your emergency contacts."
-        android:title="Max RR interval (milliseconds)" />
+        android:summary="This is your maximum score of Heart Rate Variability (HRV) based on the Root-Mean Square Differences of successive R-R intervals (RMSSD)."
+        android:title="Max HRV Score (ms)" />
+
 
     <EditTextPreference
-        android:key="min_rr_interval"
+        android:key="hrv_score_duration"
         android:inputType="number"
-        android:summary="This is the minimum time between each heart beat used as a reference for detecting problems with your heart beat variability and alerting your emergency contacts."
-        android:defaultValue="200"
-        android:title="Min RR interval (milliseconds)" />
-
+        android:defaultValue="60"
+        android:summary="If your HRV Score exceeds your maximum set value for this duration (beats) then your heart may need a check up and your emergency contacts are alerted."
+        android:title="HRV Score Duration (beats)" />
 
 </PreferenceScreen>

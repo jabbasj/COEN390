@@ -38,27 +38,29 @@ import java.util.List;
 
 public class DataGraph extends AppCompatActivity {
 
-    static private class heartRate {
-        String mHeatRate;
+    static protected class heartRate {
+        int mHeatRate;
         String mDate;
         String mNote;
 
-        heartRate  (String date, String rate, String note) {
+        heartRate  (String date, int rate, String note) {
             mDate = date;
             mHeatRate = rate;
             mNote = note;
         }
     }
 
-    static private class rrInterval {
-        String mRRInterval;
+    static protected class rrInterval {
+        int mRRInterval;
         String mDate;
         String mNote;
+        double running_mRMSSD;
 
-        rrInterval  (String date, String rate, String note) {
+        rrInterval  (String date, int RR, String note, double RMSSD) {
             mDate = date;
-            mRRInterval = rate;
+            mRRInterval = RR;
             mNote = note;
+            running_mRMSSD = RMSSD;
         }
     }
 
@@ -66,11 +68,13 @@ public class DataGraph extends AppCompatActivity {
 
     static protected List<heartRate>  mHeartRates = new ArrayList<>();
     static protected List<rrInterval> mRRIntervals = new ArrayList<>();
+    static protected List<rrInterval> mHRVScores = new ArrayList<>();
+
     static protected LineChart mChart;
+
     static protected String MAX_HR_LIMIT = "";
     static protected String MIN_HR_LIMIT = "";
-    static protected String MAX_RR_INTERVAL = "";
-    static protected String MIN_RR_INTERVAL = "";
+    static protected String MAX_HRV_SCORE = "";
 
     static protected TextView stats_tv;
 
@@ -82,13 +86,17 @@ public class DataGraph extends AppCompatActivity {
     private LimitLine MAX_HR_LIMIT_LINE;
     private LimitLine MIN_HR_LIMIT_LINE;
 
-    private LimitLine MAX_RR_LIMIT_LINE;
-    private LimitLine MIN_RR_LIMIT_LINE;
 
     /** RR interval chart stuff **/
     static private ArrayList<Entry> mRR_Entries;
     static private ArrayList<String> mRR_labels;
     static private LineDataSet mRR_DataSet;
+
+    /** HRV score chart stuff **/
+    static private ArrayList<Entry> mHRV_Entries;
+    static private ArrayList<String> mHRV_labels;
+    static private LineDataSet mHRV_DataSet;
+    private LimitLine MAX_HRV_LIMIT_LINE;
 
     private Button delete_alL_btn;
     private Button reset_scale_btn;
@@ -133,8 +141,13 @@ public class DataGraph extends AppCompatActivity {
                 graphLiveHeartRate();
             }
             if (current_graph.equals("ECG")) {
-                getSupportActionBar().setTitle("RR Intervals Graph");
+                getSupportActionBar().setTitle("R-R Intervals Graph");
                 graphLiveECGChart();
+            }
+
+            if (current_graph.equals("HRV")) {
+                getSupportActionBar().setTitle("HRV Score Graph");
+                graphLiveHRVChart();
             }
         } else {
             openDrawer();
@@ -155,6 +168,10 @@ public class DataGraph extends AppCompatActivity {
 
         if (current_graph.equals("ECG")) {
             graphLiveECGChart();
+        }
+
+        if (current_graph.equals("HRV")) {
+            graphLiveHRVChart();
         }
     }
 
@@ -188,7 +205,7 @@ public class DataGraph extends AppCompatActivity {
         mHR_Entries = new ArrayList<>();
 
         for (int i = 0; i < mHeartRates.size(); i++ ) {
-            mHR_Entries.add(new Entry(Integer.parseInt(mHeartRates.get(i).mHeatRate), i));
+            mHR_Entries.add(new Entry(mHeartRates.get(i).mHeatRate, i));
         }
 
         mHR_DataSet = new LineDataSet(mHR_Entries, "Heart Rate (bpm)");
@@ -231,7 +248,7 @@ public class DataGraph extends AppCompatActivity {
                 String heartrateDate = cursor.getString(0);
                 String heartrateValue = cursor.getString(1);
                 String heartrateNote = cursor.getString(2);
-                mHeartRates.add(new heartRate(heartrateDate, heartrateValue, heartrateNote));
+                mHeartRates.add(new heartRate(heartrateDate, Integer.parseInt(heartrateValue), heartrateNote));
             }while (cursor.moveToNext());
             cursor.close();
         }
@@ -247,14 +264,14 @@ public class DataGraph extends AppCompatActivity {
                 mChart.setData(data);
             }
 
-            heartRate new_hr = new heartRate(timeStamp, heartRate, note);
+            heartRate new_hr = new heartRate(timeStamp, Integer.parseInt(heartRate), note);
             mHeartRates.add(new_hr);
 
-            mHR_Entries.add(new Entry(Integer.parseInt(new_hr.mHeatRate), mHeartRates.size()));
+            mHR_Entries.add(new Entry(new_hr.mHeatRate, mHeartRates.size()));
             mHR_labels.add(new_hr.mDate);
 
             stats_tv.setText(" Max: " + computeMaxHeartRate() + " (bpm)\n Average: " + computeAvgHeartRate() +
-                    " (bpm)\n Min: " + computeMinHeartRate() + " (bpm)" + "\n Your Max: " + MAX_HR_LIMIT + " (bpm)  Your Min: " + MIN_HR_LIMIT + " (bpm)" );
+                    " (bpm)\n Min: " + computeMinHeartRate() + " (bpm)" + "\n Your Max: " + MAX_HR_LIMIT + " (bpm)  Your Min: " + MIN_HR_LIMIT + " (bpm)");
 
             mChart.notifyDataSetChanged();
 
@@ -268,13 +285,16 @@ public class DataGraph extends AppCompatActivity {
         Cursor cursor = myDBHelper.getAllRRIntervals(MainActivity.mCurrentRecord);
 
         mRRIntervals = new ArrayList<>();
+        mHRVScores = new ArrayList<>();
 
         if (cursor != null && cursor.moveToFirst()) {
             do {
                 String rrDate = cursor.getString(0);
                 String rrValue = cursor.getString(1);
                 String rrNote = cursor.getString(2);
-                mRRIntervals.add(new rrInterval(rrDate, rrValue, rrNote));
+                String rrRMSSD = cursor.getString(3);
+                mRRIntervals.add(new rrInterval(rrDate, Integer.parseInt(rrValue), rrNote, Double.parseDouble(rrRMSSD)));
+                mHRVScores.add(new rrInterval(rrDate, Integer.parseInt(rrValue), rrNote, Double.parseDouble(rrRMSSD)));
             }while (cursor.moveToNext());
             cursor.close();
         }
@@ -287,13 +307,12 @@ public class DataGraph extends AppCompatActivity {
 
         removeLimitLines();
         getAllRRIntervals();
-        ADD_MAX_AND_MIN_LINES();
 
         mRR_Entries = new ArrayList<>();
 
         for (int i = 0; i < mRRIntervals.size(); i++ ) {
 
-            mRR_Entries.add(new Entry(Integer.parseInt(mRRIntervals.get(i).mRRInterval), i));
+            mRR_Entries.add(new Entry(mRRIntervals.get(i).mRRInterval, i));
         }
 
         mRR_DataSet = new LineDataSet(mRR_Entries, "Beat-to-Beat Intervals (ms)");
@@ -312,8 +331,7 @@ public class DataGraph extends AppCompatActivity {
         data.setDrawValues(false);//?
 
         mChart.setData(data);
-        stats_tv.setText(" Max: " + computeMaxRRInterval() + " (ms)\n Average: " + computeAvgRRInterval() + " (ms)\n Min: " + computeMinRRInterval() + " (ms)"
-                + "\n Your Max: " + MAX_RR_INTERVAL + " (ms)  Your Min: " + MIN_RR_INTERVAL + " (ms)" );
+        stats_tv.setText(" Max: " + computeMaxRRInterval() + " (ms)\n Average: " + computeAvgRRInterval() + " (ms)\n Min: " + computeMinRRInterval() + " (ms)");
         mChart.setDescription("");
 
         //hide grid
@@ -327,7 +345,7 @@ public class DataGraph extends AppCompatActivity {
         mChart.invalidate();
     }
 
-    static protected void updateLiveECG(String timeStamp, String rrInterval, String note) {
+    static protected void updateLiveECG(String timeStamp, String rrInterval, String note, String running_RMSSD) {
 
         if (mChart != null ) {
 
@@ -337,19 +355,92 @@ public class DataGraph extends AppCompatActivity {
                 mChart.setData(data);
             }
 
-            rrInterval new_rr = new rrInterval(timeStamp, rrInterval, note);
+            rrInterval new_rr = new rrInterval(timeStamp, Integer.parseInt(rrInterval), note, Double.parseDouble(running_RMSSD));
 
             mRRIntervals.add(new_rr);
 
-            mRR_Entries.add(new Entry(Integer.parseInt(new_rr.mRRInterval), mRRIntervals.size()));
+            mRR_Entries.add(new Entry(new_rr.mRRInterval, mRRIntervals.size()));
             mRR_labels.add(new_rr.mDate);
 
             mChart.notifyDataSetChanged();
             mChart.setVisibleXRangeMaximum(30);
             mChart.moveViewToX(mRRIntervals.size() - 31);
 
-            stats_tv.setText(" Max: " + computeMaxRRInterval() + " (ms)\n Average: " + computeAvgRRInterval() + " (ms)\n Min: " + computeMinRRInterval() + " (ms)"
-                    + "\n Your Max: " + MAX_RR_INTERVAL + " (ms)  Your Min: " + MIN_RR_INTERVAL + " (ms)" );
+            stats_tv.setText(" Max: " + computeMaxRRInterval() + " (ms)\n Average: " + computeAvgRRInterval() + " (ms)\n Min: " + computeMinRRInterval() + " (ms)");
+            //mChart.invalidate();
+
+        }
+    }
+
+    private void graphLiveHRVChart() {
+
+        current_graph = "HRV";
+
+        removeLimitLines();
+        getAllRRIntervals();
+        ADD_MAX_AND_MIN_LINES();
+
+        mHRV_Entries = new ArrayList<>();
+
+        for (int i = 0; i < mHRVScores.size(); i++ ) {
+
+            mHRV_Entries.add(new Entry((float)mHRVScores.get(i).running_mRMSSD, i));
+        }
+
+        mHRV_DataSet = new LineDataSet(mHRV_Entries, "HRV Score (ms)");
+        mHRV_labels = new ArrayList<>();
+
+        for (int j = 0; j < mHRVScores.size(); j++ ) {
+
+            mHRV_labels.add(mHRVScores.get(j).mDate);
+        }
+
+        mHRV_DataSet.setDrawCubic(false); //rounded -> true causes bug!!!
+        mHRV_DataSet.setDrawFilled(false); //don't fill under line
+        mHRV_DataSet.setDrawCircles(false); //remove data 'points'
+
+        LineData data = new LineData(mHRV_labels, mHRV_DataSet);
+        data.setDrawValues(false);//?
+
+        mChart.setData(data);
+        stats_tv.setText(" Max: " + computeMaxHRVscore() + " (ms)\n Average: " + computeAvgHRVscore() + " (ms)\n Min: " + computeMinHRVscore() + " (ms)"
+                + "\n Your Max HRV: " + MAX_HRV_SCORE + " (ms)");
+        mChart.setDescription("");
+
+        //hide grid
+        mChart.getAxisLeft().setDrawGridLines(false);
+        mChart.getAxisRight().setDrawGridLines(false);
+        mChart.getXAxis().setDrawGridLines(false);
+
+        mChart.setAutoScaleMinMaxEnabled(true);
+
+        mChart.notifyDataSetChanged();
+        mChart.invalidate();
+    }
+
+    static protected void updateLiveHRV(String timeStamp, String rrInterval, String note, String running_RMSSD) {
+
+        if (mChart != null ) {
+
+            if (mChart.getData() == null) {
+                LineData data = new LineData(mHRV_labels, mHRV_DataSet);
+                data.setDrawValues(false);
+                mChart.setData(data);
+            }
+
+            rrInterval new_hrv = new rrInterval(timeStamp, Integer.parseInt(rrInterval), note, Double.parseDouble(running_RMSSD));
+
+            mHRVScores.add(new_hrv);
+
+            mHRV_Entries.add(new Entry((float)new_hrv.running_mRMSSD, mHRVScores.size()));
+            mHRV_labels.add(new_hrv.mDate);
+
+            mChart.notifyDataSetChanged();
+            mChart.setVisibleXRangeMaximum(30);
+            mChart.moveViewToX(mHRVScores.size() - 31);
+
+            stats_tv.setText(" Max: " + computeMaxHRVscore() + " (ms)\n Average: " + computeAvgHRVscore() + " (ms)\n Min: " + computeMinHRVscore() + " (ms)"
+                    + "\n Your Max HRV: " + MAX_HRV_SCORE  + " (ms)");
             //mChart.invalidate();
 
         }
@@ -358,7 +449,7 @@ public class DataGraph extends AppCompatActivity {
     static private int computeAvgHeartRate() {
         int sum = 0;
         for (int i=0; i < mHeartRates.size(); i++) {
-            sum += Integer.parseInt(mHeartRates.get(i).mHeatRate);
+            sum += mHeartRates.get(i).mHeatRate;
         }
 
         if (mHeartRates.size() == 0) {
@@ -372,11 +463,11 @@ public class DataGraph extends AppCompatActivity {
 
         if (mHeartRates.size() > 0) {
 
-            max = Integer.parseInt(mHeartRates.get(0).mHeatRate);
+            max = mHeartRates.get(0).mHeatRate;
 
             for (int i = 1; i < mHeartRates.size(); i++) {
-                if (Integer.parseInt(mHeartRates.get(i).mHeatRate) > max) {
-                    max = Integer.parseInt(mHeartRates.get(i).mHeatRate);
+                if (mHeartRates.get(i).mHeatRate > max) {
+                    max = mHeartRates.get(i).mHeatRate;
                 }
             }
         }
@@ -386,11 +477,11 @@ public class DataGraph extends AppCompatActivity {
     static private int computeMinHeartRate() {
         int min = 0;
         if (mHeartRates.size() > 0) {
-            min = Integer.parseInt(mHeartRates.get(0).mHeatRate);
+            min = mHeartRates.get(0).mHeatRate;
 
             for (int i = 1; i < mHeartRates.size(); i++) {
-                if (Integer.parseInt(mHeartRates.get(i).mHeatRate) < min) {
-                    min = Integer.parseInt(mHeartRates.get(i).mHeatRate);
+                if (mHeartRates.get(i).mHeatRate < min) {
+                    min = mHeartRates.get(i).mHeatRate;
                 }
             }
         }
@@ -400,7 +491,7 @@ public class DataGraph extends AppCompatActivity {
     static private int computeAvgRRInterval() {
         int sum = 0;
         for (int i=0; i < mRRIntervals.size(); i++) {
-            sum += Integer.parseInt(mRRIntervals.get(i).mRRInterval);
+            sum += mRRIntervals.get(i).mRRInterval;
         }
 
         if (mRRIntervals.size() == 0) {
@@ -412,11 +503,11 @@ public class DataGraph extends AppCompatActivity {
     static private int computeMinRRInterval() {
         int min = 0;
         if (mRRIntervals.size() > 0) {
-            min = Integer.parseInt(mRRIntervals.get(0).mRRInterval);
+            min = mRRIntervals.get(0).mRRInterval;
 
             for (int i = 1; i < mRRIntervals.size(); i++) {
-                if (Integer.parseInt(mRRIntervals.get(i).mRRInterval) < min) {
-                    min = Integer.parseInt(mRRIntervals.get(i).mRRInterval);
+                if (mRRIntervals.get(i).mRRInterval < min) {
+                    min = mRRIntervals.get(i).mRRInterval;
                 }
             }
         }
@@ -428,11 +519,52 @@ public class DataGraph extends AppCompatActivity {
 
         if (mRRIntervals.size() > 0) {
 
-            max = Integer.parseInt(mRRIntervals.get(0).mRRInterval);
+            max = mRRIntervals.get(0).mRRInterval;
 
             for (int i = 1; i < mRRIntervals.size(); i++) {
-                if (Integer.parseInt(mRRIntervals.get(i).mRRInterval) > max) {
-                    max = Integer.parseInt(mRRIntervals.get(i).mRRInterval);
+                if (mRRIntervals.get(i).mRRInterval > max) {
+                    max = mRRIntervals.get(i).mRRInterval;
+                }
+            }
+        }
+        return max;
+    }
+
+    static private float computeAvgHRVscore() {
+        float sum = 0;
+        for (int i=0; i < mHRVScores.size(); i++) {
+            sum += (float)mHRVScores.get(i).running_mRMSSD;
+        }
+
+        if (mHRVScores.size() == 0) {
+            return 0;
+        }
+        return sum/mHRVScores.size();
+    }
+
+    static private float computeMinHRVscore() {
+        float min = 10000;
+        if (mHRVScores.size() > 0) {
+
+            for (int i = 0; i < mHRVScores.size(); i++) {
+                if ((float)mHRVScores.get(i).running_mRMSSD < min && (float)mHRVScores.get(i).running_mRMSSD != 0) {
+                    min = (float) mHRVScores.get(i).running_mRMSSD;
+                }
+            }
+        }
+        return min;
+    }
+
+    static private float computeMaxHRVscore() {
+        float max = 0;
+
+        if (mHRVScores.size() > 0) {
+
+            max = (float)mHRVScores.get(0).running_mRMSSD;
+
+            for (int i = 1; i < mHRVScores.size(); i++) {
+                if ((float)mHRVScores.get(i).running_mRMSSD > max) {
+                    max = (float)mHRVScores.get(i).running_mRMSSD;
                 }
             }
         }
@@ -443,52 +575,50 @@ public class DataGraph extends AppCompatActivity {
         if (limit_lines_add_once) {
             removeLimitLines();
         }
-
-        SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
-        if (checkSettings()) {
+        String missing_settings = checkSettings();
+        if (missing_settings.equals("")) {
             if (current_graph.equals("HR")) {
                 createLimitLines(MAX_HR_LIMIT, MIN_HR_LIMIT);
                 mChart.getAxisLeft().addLimitLine(MAX_HR_LIMIT_LINE);
                 mChart.getAxisLeft().addLimitLine(MIN_HR_LIMIT_LINE);
             }
 
-            if (current_graph.equals("ECG")) {
-                createLimitLines(MAX_RR_INTERVAL, MIN_RR_INTERVAL);
-                mChart.getAxisLeft().addLimitLine(MAX_RR_LIMIT_LINE);
-                mChart.getAxisLeft().addLimitLine(MIN_RR_LIMIT_LINE);
+            if (current_graph.equals("HRV")) {
+                createLimitLines(MAX_HRV_SCORE, "0");
+                mChart.getAxisLeft().addLimitLine(MAX_HRV_LIMIT_LINE);
+            }
+        } else {
+            if (MAX_HR_LIMIT.equals("") || MIN_HR_LIMIT.equals("")) {
+                showToast("Max/Min HR limits not set!");
+            }
+
+            if (MAX_HRV_SCORE.equals("")) {
+                showToast("Max HRV score not set!");
             }
         }
     }
 
     private void createLimitLines(String MAX_LIMIT, String MIN_LIMIT) {
-        if (checkSettings()) {
+        if (current_graph.equals("HR")) {
+            MAX_HR_LIMIT_LINE = new LimitLine(Integer.parseInt(MAX_LIMIT)); // set where the line should be drawn
+            MAX_HR_LIMIT_LINE.setLineColor(Color.BLACK);
+            MAX_HR_LIMIT_LINE.setLineWidth(1);
+            MAX_HR_LIMIT_LINE.setLabel("MAX");
 
-            if (current_graph.equals("HR")) {
-                MAX_HR_LIMIT_LINE = new LimitLine(Integer.parseInt(MAX_LIMIT)); // set where the line should be drawn
-                MAX_HR_LIMIT_LINE.setLineColor(Color.BLACK);
-                MAX_HR_LIMIT_LINE.setLineWidth(1);
-                MAX_HR_LIMIT_LINE.setLabel("MAX");
-
-                MIN_HR_LIMIT_LINE = new LimitLine(Integer.parseInt(MIN_LIMIT));
-                MIN_HR_LIMIT_LINE.setLineColor(Color.BLACK);
-                MIN_HR_LIMIT_LINE.setLineWidth(1);
-                MIN_HR_LIMIT_LINE.setLabel("MIN");
-            }
-
-            if (current_graph.equals("ECG")) {
-                MAX_RR_LIMIT_LINE = new LimitLine(Integer.parseInt(MAX_LIMIT)); // set where the line should be drawn
-                MAX_RR_LIMIT_LINE.setLineColor(Color.BLACK);
-                MAX_RR_LIMIT_LINE.setLineWidth(1);
-                MAX_RR_LIMIT_LINE.setLabel("MAX");
-
-                MIN_RR_LIMIT_LINE = new LimitLine(Integer.parseInt(MIN_LIMIT));
-                MIN_RR_LIMIT_LINE.setLineColor(Color.BLACK);
-                MIN_RR_LIMIT_LINE.setLineWidth(1);
-                MIN_RR_LIMIT_LINE.setLabel("MIN");
-            }
-
-            limit_lines_add_once = true;
+            MIN_HR_LIMIT_LINE = new LimitLine(Integer.parseInt(MIN_LIMIT));
+            MIN_HR_LIMIT_LINE.setLineColor(Color.BLACK);
+            MIN_HR_LIMIT_LINE.setLineWidth(1);
+            MIN_HR_LIMIT_LINE.setLabel("MIN");
         }
+
+        if (current_graph.equals("HRV")) {
+            MAX_HRV_LIMIT_LINE = new LimitLine(Integer.parseInt(MAX_LIMIT)); // set where the line should be drawn
+            MAX_HRV_LIMIT_LINE.setLineColor(Color.BLACK);
+            MAX_HRV_LIMIT_LINE.setLineWidth(1);
+            MAX_HRV_LIMIT_LINE.setLabel("MAX");
+        }
+
+        limit_lines_add_once = true;
     }
 
     static protected void removeLimitLines() {
@@ -504,8 +634,8 @@ public class DataGraph extends AppCompatActivity {
         View listHeaderView = inflater.inflate(R.layout.nav_header,null, false);
         mDrawerList.addHeaderView(listHeaderView);
 
-        String[] osArray = { "New Record", "Saved Records", "Heart Rate Graph", "RR Intervals Graph", "Potential Danger", "Information" };
-        /**      positions:       1              2                   3                  4                     5              6     **/
+        String[] osArray = { "New Record", "Saved Records", "Heart Rate Graph", "R-R Intervals Graph", "HRV Score Graph", "Potential Danger", "Information" };
+        /**      positions:       1              2                   3                  4                    5                  6               7   **/
         mAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, osArray);
         mDrawerList.setAdapter(mAdapter);
 
@@ -528,19 +658,26 @@ public class DataGraph extends AppCompatActivity {
                         showToast("Showing Heart Rate");
                         closeDrawer();
                         break;
-                    case 4 /** Live ECG **/:
+                    case 4 /** Live R-R intervals **/:
                         mChart.clear();
                         graphLiveECGChart();
-                        getSupportActionBar().setTitle("RR Intervals Chart");
-                        showToast("Showing RR Intervals");
+                        getSupportActionBar().setTitle("R-R Intervals Chart");
+                        showToast("Showing R-R Intervals");
                         closeDrawer();
                         break;
-                    case 5 /** Potential Danger **/:
+                    case 5 /** Heart rate Variability **/:
+                        mChart.clear();
+                        getSupportActionBar().setTitle("HRV Score Chart");
+                        graphLiveHRVChart();
+                        showToast("Showing HRV Score");
+                        closeDrawer();
+                        break;
+                    case 6 /** Potential Danger **/:
                         closeDrawer();
                         detectDanger(view);
                         break;
 
-                    case 6 /** Info **/:
+                    case 7 /** Info **/:
                         closeDrawer();
                         showInfoPicture(view);
                         break;
@@ -707,10 +844,16 @@ public class DataGraph extends AppCompatActivity {
         if (MainActivity.mCurrentRecord.equals("")) {
             showToast("Select a record first!");
         } else {
-            if (checkSettings()){
-                showDangers(v);
+            String missing_settings = checkSettings();
+            if (missing_settings.equals("")){
+
+                if (current_graph.equals("HRV") || current_graph.equals("HR")) {
+                    showDangers(v);
+                } else {
+                    showToast("See HRV graph for issues.");
+                }
             } else {
-                showToast("Settings needed for this feature!");
+                showToast(missing_settings + " settings needed for this feature!");
             }
         }
     }
@@ -728,22 +871,22 @@ public class DataGraph extends AppCompatActivity {
         int time_max_hr = 0;
         int time_min_hr = 0;
         for (int i=0; i < mHeartRates.size(); i++) {
-            if (Integer.parseInt(mHeartRates.get(i).mHeatRate) > max) {
+            if (mHeartRates.get(i).mHeatRate >= max) {
                 time_max_hr += 1;
 
-                if (time_max_hr > max_duration) {
-                    max_points.add("Max HR surpassed for " + max_duration + " seconds starting at " + mHeartRates.get(i-max_duration).mDate);
+                if (time_max_hr >= max_duration) {
+                    max_points.add("Max HR surpassed for " + max_duration + " seconds starting at " + mHeartRates.get(i-max_duration+1).mDate);
                     time_max_hr = 0;
                 }
             } else {
                 time_max_hr = 0;
             }
 
-            if (Integer.parseInt(mHeartRates.get(i).mHeatRate) < min) {
+            if (mHeartRates.get(i).mHeatRate <= min) {
                 time_min_hr += 1;
 
-                if (time_min_hr > min_duration) {
-                    max_points.add("Min HR surpassed for " + min_duration + " seconds starting at " + mHeartRates.get(i-min_duration).mDate);
+                if (time_min_hr >= min_duration) {
+                    max_points.add("Min HR surpassed for " + min_duration + " seconds starting at " + mHeartRates.get(i-min_duration+1).mDate);
                     time_min_hr = 0;
                 }
             } else {
@@ -755,8 +898,29 @@ public class DataGraph extends AppCompatActivity {
         return max_points;
     }
 
-    protected ArrayList<String> scanRRIntervals() {
-        return new ArrayList<String>();
+
+    protected ArrayList<String> scanHRVScores() {
+        ArrayList<String> max_points = new ArrayList<>();
+
+        int max = Integer.parseInt(MAX_HRV_SCORE);
+        int max_duration = Integer.parseInt(getStringPreference("hrv_score_duration", ""));
+
+        int time_max_hr = 0;
+
+        for (int i=0; i < mHRVScores.size(); i++) {
+            if (mHRVScores.get(i).running_mRMSSD >= max) {
+                time_max_hr += 1;
+
+                if (time_max_hr >= max_duration) {
+                    max_points.add("Max HRV Score surpassed for " + max_duration + " beats starting at " + mHRVScores.get(i-max_duration+1).mDate);
+                    time_max_hr = 0;
+                }
+            } else {
+                time_max_hr = 0;
+            }
+        }
+
+        return max_points;
     }
 
     protected void showDangers(View v) {
@@ -774,12 +938,14 @@ public class DataGraph extends AppCompatActivity {
             }
         }
 
-        if (current_graph.equals("ECG")) {
-            mDangerPoints.addAll(scanRRIntervals());
+        if (current_graph.equals("HRV")) {
+            mDangerPoints.addAll(scanHRVScores());
             if (mDangerPoints.size() == 0) {
-                mDangerPoints.add("Dangerous RR Intervals not reached!");
+                mDangerPoints.add("Max HRV Score not reached!" + "\n\nYour Max HRV Score is " + getStringPreference("max_hrv_score", "")
+                        + " (ms) with sensitivity: " + getStringPreference("hrv_score_duration", "") + " (beats)");
             }
         }
+
 
         AdapterView.OnItemClickListener listener = new AdapterView.OnItemClickListener() {
             public void onItemClick (AdapterView < ? > parent, View view,int position, long id){
@@ -796,13 +962,28 @@ public class DataGraph extends AppCompatActivity {
                             mChart.fitScreen();
                             mChart.zoomIn();
                             mChart.zoomIn();
-                            mChart.moveViewTo(i, Integer.parseInt(mHeartRates.get(i).mHeatRate), mHR_DataSet.getAxisDependency());
+                            mChart.moveViewTo(i, mHeartRates.get(i).mHeatRate, mHR_DataSet.getAxisDependency());
                             break;
                         }
                     }
                 }
 
-                if (!danger_point.startsWith("Dangerous RR Intervals not reached!") && current_graph.equals("ECG")) {
+                if (!danger_point.startsWith("Max HRV Score not reached!") && current_graph.equals("HRV")) {
+
+                    int index_of_danger_point;
+                    index_of_danger_point = danger_point.indexOf("at ");
+                    String danger_time_point = danger_point.substring(index_of_danger_point + 3);
+                    showToast(danger_time_point);
+
+                    for (int i = 0; i < mHRVScores.size(); i++) {
+                        if (mHRVScores.get(i).mDate.equals(danger_time_point)) {
+                            mChart.fitScreen();
+                            mChart.zoomIn();
+                            mChart.zoomIn();
+                            mChart.moveViewTo(i, (float) mHRVScores.get(i).running_mRMSSD, mHRV_DataSet.getAxisDependency());
+                            break;
+                        }
+                    }
 
                 }
             }
@@ -830,7 +1011,8 @@ public class DataGraph extends AppCompatActivity {
 
         new AlertDialog.Builder(v.getContext())
                 .setTitle("Typical Electrocardiogram")
-                .setMessage("RR Intervals refers to the time in milliseconds (ms) between individual Heart Beats. Heart Rate is the number of beats per minute (bpm).")
+                .setMessage("Heart Rate is the number of beats per minute (bpm).\nR-R Intervals refers to the time in milliseconds (ms) between individual Heart Beats." +
+                        "\nHRV (Heart Rate Variability) score is a measure based on the Root-Mean Square Differences of successive R-R intervals (RMSSD).")
                 .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int which) {
 
@@ -844,38 +1026,35 @@ public class DataGraph extends AppCompatActivity {
         Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
     }
 
-    protected boolean checkSettings() {
+    protected String checkSettings() {
         SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(this);
         String setting_string = "";
         try {
-            setting_string = "Max RR Interval";
-            Integer.parseInt(sp.getString("max_rr_interval", ""));
-            MAX_RR_INTERVAL = sp.getString("max_rr_interval", "");
-
-            setting_string = "Min RR Interval";
-            Integer.parseInt(sp.getString("min_rr_interval", ""));
-            MIN_RR_INTERVAL = sp.getString("min_rr_interval", "");
-
-            setting_string = "Min Heart Rate";
-            Integer.parseInt(sp.getString("min_heart_rate", ""));
-            MAX_HR_LIMIT = sp.getString("max_heart_rate", "");
-
-
-            setting_string = "Min Heart Rate Duration";
-            Integer.parseInt(sp.getString("min_heart_rate_duration", ""));
-
             setting_string = "Max Heart Rate";
-            Integer.parseInt(sp.getString("max_heart_rate", ""));
-            MIN_HR_LIMIT = sp.getString("min_heart_rate", "");
+            MAX_HR_LIMIT = sp.getString("max_heart_rate", "");
+            Integer.parseInt(MAX_HR_LIMIT);
 
             setting_string = "Max Heart Rate Duration";
             Integer.parseInt(sp.getString("max_heart_rate_duration", ""));
 
+            setting_string = "Min Heart Rate";
+            MIN_HR_LIMIT = sp.getString("min_heart_rate", "");
+            Integer.parseInt(MIN_HR_LIMIT);
+
+            setting_string = "Min Heart Rate Duration";
+            Integer.parseInt(sp.getString("min_heart_rate_duration", ""));
+
+            setting_string = "Max HRV Score";
+            MAX_HRV_SCORE = sp.getString("max_hrv_score", "");
+            Integer.parseInt(MAX_HRV_SCORE);
+
+            setting_string = "HRV Score Duration";
+            Integer.parseInt(sp.getString("hrv_score_duration", ""));
+
         }catch (Exception e) {
-            showToast(setting_string + " setting missing!");
-            return false;
+            return setting_string;
         }
-        return true;
+        return "";
     }
 
     @Override
